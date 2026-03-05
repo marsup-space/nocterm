@@ -1,3 +1,32 @@
+# 0.6.0
+
+## New Features
+- **Windows Support**: Add Windows platform support with Console API input for arrow keys and special keys
+- **Shift+Enter Newline**: Support Shift+Enter for newline input via kitty keyboard protocol
+- **Benchmark Suite**: Add benchmark suite with baseline comparison and CI workflow
+- **Smart Markdown Tables**: Wrap markdown tables to fit terminal width
+
+## Bug Fixes
+- **Theme Colors**: Soften onBackground/onSurface theme colors to match terminal defaults; use explicit theme colors for fg/bg
+- **Kitty Protocol**: Restore 0x0A as Enter and fix kitty sub-parameter parsing; include kitty/modifyOtherKeys in EscapeCodes values lists
+- **Scroll Views**: Guard against non-finite sizes in scroll views and improve error rendering
+- **Scrollbar**: Prevent scrollbar thumb from overlapping arrows at start/end
+- **Terminal Exit**: Flush stdout before exit to prevent broken terminal state on macOS
+- **Markdown**: Trim trailing newlines from last markdown block element
+- **Element Comparison**: Use `operator==` instead of `identical` (matching Flutter)
+
+## Performance
+- **Inherited Element**: Skip redundant rebuilds in inherited element updates
+
+## Refactoring
+- **InheritedElement**: Make InheritedElement extend ProxyElement
+
+## Chores
+- Improve pub.dev score (description, changelog, example, lint)
+- Add community section to README
+
+---
+
 # 0.5.1
 
 ## Bug Fixes
