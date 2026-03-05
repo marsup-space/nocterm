@@ -120,6 +120,20 @@ abstract class Element implements BuildContext {
     _lifecycleState = _ElementLifecycle.defunct;
   }
 
+  /// Propagates a slot change down the element tree until it reaches a
+  /// [RenderObjectElement], which will call [moveRenderObjectChild] on its
+  /// ancestor to reorder the render object in the parent's child list.
+  void updateSlotForChild(Element child, dynamic newSlot) {
+    void visit(Element element) {
+      element.updateSlot(newSlot);
+      if (element is! RenderObjectElement) {
+        element.visitChildren(visit);
+      }
+    }
+
+    visit(child);
+  }
+
   @protected
   Element? updateChild(
       Element? child, Component? newComponent, dynamic newSlot) {
@@ -133,7 +147,10 @@ abstract class Element implements BuildContext {
     final Element newChild;
     if (child != null) {
       if (child.component == newComponent) {
-        newChild = child; // short circuit
+        if (child.slot != newSlot) {
+          updateSlotForChild(child, newSlot);
+        }
+        newChild = child;
       } else if (Component.canUpdate(child.component, newComponent)) {
         child.update(newComponent);
         newChild = child;
