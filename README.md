@@ -20,7 +20,7 @@
 
 ```yaml
 dependencies:
-  nocterm: ^0.5.1
+  nocterm: ^0.6.0
 ```
 
 ## Quick Start
