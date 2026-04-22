@@ -31,8 +31,8 @@ class _ChatDemoState extends State<ChatDemo> {
     'Scroll back down to re-enable auto-scroll.',
     'You can also type your own messages!',
     'Press Enter to send a message.',
-    'Press "a" to toggle auto messages.',
-    'Press "c" to clear the chat.',
+    'Press Ctrl+A to toggle auto messages.',
+    'Press Ctrl+N to clear the chat.',
   ];
   int autoMessageIndex = 0;
 
@@ -41,7 +41,7 @@ class _ChatDemoState extends State<ChatDemo> {
     super.initState();
     // Add initial messages
     _addMessage('System',
-        'Chat demo started. Press "a" to toggle auto messages, "c" to clear.',
+        'Chat demo started. Press Ctrl+A to toggle auto messages, Ctrl+N to clear.',
         isSystem: true);
     _addMessage('System', 'Type a message and press Enter to send.',
         isSystem: true);
@@ -117,18 +117,11 @@ class _ChatDemoState extends State<ChatDemo> {
   }
 
   bool _handleKeyEvent(KeyboardEvent event) {
-    if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
-      TerminalBinding.instance.requestShutdown();
-    } else if (event.logicalKey == LogicalKey.keyA && !inputHasFocus) {
+    if (event.logicalKey == LogicalKey.keyA && event.isControlPressed) {
       _toggleAutoMessages();
       return true;
-    } else if (event.logicalKey == LogicalKey.keyC && !inputHasFocus) {
+    } else if (event.logicalKey == LogicalKey.keyN && event.isControlPressed) {
       _clearChat();
-      return true;
-    } else if (event.logicalKey == LogicalKey.escape) {
-      setState(() {
-        inputHasFocus = false;
-      });
       return true;
     }
     return false;
@@ -236,9 +229,9 @@ class _ChatDemoState extends State<ChatDemo> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('[a] Toggle auto messages | ',
+                  Text('[Ctrl+A] Toggle auto | ',
                       style: TextStyle(color: Colors.gray)),
-                  Text('[c] Clear chat | ',
+                  Text('[Ctrl+N] Clear chat | ',
                       style: TextStyle(color: Colors.gray)),
                   Text('[↑↓] Scroll | ', style: TextStyle(color: Colors.gray)),
                   Text('[Enter] Send', style: TextStyle(color: Colors.gray)),
