@@ -3,8 +3,9 @@
 
 import 'package:nocterm/nocterm.dart';
 
-void main() {
-  runApp(const TodoApp());
+void main() async {
+  TerminalBinding.instance.ctrlCBehavior = CtrlCBehavior.doublePressExit;
+  await runApp(const TodoApp());
 }
 
 class TodoApp extends StatefulComponent {
@@ -88,7 +89,7 @@ class _TodoAppState extends State<TodoApp> {
             const SizedBox(height: 1),
             Center(
               child: Text(
-                'Arrow keys: Navigate | Space: Toggle',
+                'Arrow keys: Navigate | Space: Toggle | Ctrl+C: Exit (press twice)',
                 style: TextStyle(color: Colors.brightBlack),
               ),
             ),
