@@ -553,7 +553,28 @@ class TerminalBinding extends NoctermBinding
   }
 
   void _performResume() {
-    // Clear previous buffer to force full redraw on resume
+    // Re-enter alternate screen and re-enable all tracking modes
+    // This is needed because when the process was suspended with Ctrl+Z,
+    // the terminal may have restored the normal screen
+    terminal.enterAlternateScreen();
+    terminal.hideCursor();
+    terminal.clear();
+
+    // Re-enable mouse tracking
+    terminal.write(EscapeCodes.enable.basicMouseTracking);
+    terminal.write(EscapeCodes.enable.buttonEventTracking);
+    terminal.write(EscapeCodes.enable.motionTracking);
+    terminal.write(EscapeCodes.enable.sgrMouseMode);
+
+    // Re-enable bracketed paste mode
+    terminal.write(EscapeCodes.enable.bracketedPasteMode);
+
+    // Re-enable kitty keyboard protocol
+    terminal.write(EscapeCodes.enable.kittyKeyboard);
+    terminal.write(EscapeCodes.enable.modifyOtherKeys);
+    terminal.flush();
+
+    // Clear previous buffer to force full redraw
     _previousBuffer = null;
     scheduleFrame();
   }
