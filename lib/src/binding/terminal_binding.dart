@@ -15,6 +15,19 @@ import '../rendering/mouse_hit_test.dart';
 import '../rendering/mouse_tracker.dart';
 import 'hot_reload_mixin.dart';
 
+/// Behavior when Ctrl+C is pressed and not intercepted by a component.
+enum CtrlCBehavior {
+  /// Single Ctrl+C exits immediately (default behavior).
+  immediateExit,
+
+  /// First Ctrl+C shows warning, second Ctrl+C within timeout exits.
+  /// Any other key resets the counter.
+  doublePressExit,
+
+  /// Ctrl+C is treated as a regular key event, no exit handling.
+  disabled,
+}
+
 /// Terminal UI binding that handles terminal input/output and event loop
 class TerminalBinding extends NoctermBinding
     with SchedulerBinding, HotReloadBinding {
@@ -127,6 +140,21 @@ class TerminalBinding extends NoctermBinding
 
   StreamSubscription? _inputSubscription;
   StreamSubscription? _resizeSubscription;
+
+  /// Behavior when Ctrl+C is pressed and not intercepted by a component.
+  ///
+  /// - [immediateExit]: Single Ctrl+C exits immediately (default).
+  /// - [doublePressExit]: First Ctrl+C shows warning, second Ctrl+C within
+  ///   [ctrlCDoublePressTimeout] exits. Any other key resets the counter.
+  /// - [disabled]: Ctrl+C is treated as a regular key event, no exit.
+  CtrlCBehavior ctrlCBehavior = CtrlCBehavior.immediateExit;
+
+  /// Timeout for double-press Ctrl+C exit behavior.
+  Duration ctrlCDoublePressTimeout = const Duration(seconds: 1);
+
+  int _ctrlCPressCount = 0;
+  DateTime? _lastCtrlCPressTime;
+  Timer? _ctrlCResetTimer;
   StreamSubscription? _shutdownSubscription;
   Size? _lastKnownSize;
 
@@ -260,11 +288,9 @@ class TerminalBinding extends NoctermBinding
           // Route the event through the component tree
           final handled = _routeKeyboardEvent(keyEvent);
 
-          // Ctrl+C from raw byte input should also trigger shutdown if unhandled
-          // (same as SIGINT signal handler path)
+          // Handle unhandled Ctrl+C according to configured behavior
           if (!handled && keyEvent.matches(LogicalKey.keyC, ctrl: true)) {
-            _performImmediateShutdown();
-            terminal.backend.requestExit(0);
+            _handleUnhandledCtrlC();
           }
 
           // Note: Ctrl+C (SIGINT) is routed through the event system first,
@@ -513,10 +539,9 @@ class TerminalBinding extends NoctermBinding
         // Route through component tree - components can intercept by returning true
         final handled = _routeKeyboardEvent(ctrlCEvent);
 
-        // If no component handled it, perform default shutdown
+        // If no component handled it, use configured Ctrl+C behavior
         if (!handled) {
-          _performImmediateShutdown();
-          terminal.backend.requestExit(0);
+          _handleUnhandledCtrlC();
         }
       });
     }
@@ -589,6 +614,64 @@ class TerminalBinding extends NoctermBinding
     } catch (_) {
       // Ignore errors when running without a proper terminal
     }
+  }
+
+  /// Handle Ctrl+C when not intercepted by any component.
+  ///
+  /// Behavior depends on [ctrlCBehavior]:
+  /// - [CtrlCBehavior.immediateExit]: Exits immediately (default).
+  /// - [CtrlCBehavior.doublePressExit]: First press shows warning, second
+  ///   press within [ctrlCDoublePressTimeout] exits.
+  /// - [CtrlCBehavior.disabled]: Does nothing.
+  void _handleUnhandledCtrlC() {
+    switch (ctrlCBehavior) {
+      case CtrlCBehavior.disabled:
+        // Do nothing - let components or default behavior handle it
+        break;
+
+      case CtrlCBehavior.immediateExit:
+        _performImmediateShutdown();
+        terminal.backend.requestExit(0);
+        break;
+
+      case CtrlCBehavior.doublePressExit:
+        final now = DateTime.now();
+        final elapsed = _lastCtrlCPressTime != null
+            ? now.difference(_lastCtrlCPressTime!)
+            : null;
+
+        if (elapsed != null &&
+            elapsed < ctrlCDoublePressTimeout &&
+            _ctrlCPressCount >= 1) {
+          // Second press within timeout - exit
+          _ctrlCPressCount = 0;
+          _lastCtrlCPressTime = null;
+          _ctrlCResetTimer?.cancel();
+          _ctrlCResetTimer = null;
+          _performImmediateShutdown();
+          terminal.backend.requestExit(0);
+        } else {
+          // First press or timeout expired - show warning
+          _ctrlCPressCount = 1;
+          _lastCtrlCPressTime = now;
+          _ctrlCResetTimer?.cancel();
+          _ctrlCResetTimer = Timer(ctrlCDoublePressTimeout, () {
+            _ctrlCPressCount = 0;
+            _lastCtrlCPressTime = null;
+          });
+          _showCtrlCWarning();
+        }
+        break;
+    }
+  }
+
+  /// Show Ctrl+C warning message when in double-press exit mode.
+  void _showCtrlCWarning() {
+    terminal.write('\x1B[1;33m'); // Yellow bold
+    terminal.write('\x1B[10C');   // Move cursor right 10
+    terminal.write('[Press Ctrl+C again to exit]\x1B[0m');
+    terminal.write('\x1B[10D');   // Move cursor back left 10
+    terminal.flush();
   }
 
   /// Handle global debug key combinations.
