@@ -161,11 +161,14 @@ class TerminalBinding extends NoctermBinding
 
   /// Behavior when Ctrl+C is pressed and not intercepted by a component.
   ///
-  /// - [immediateExit]: Single Ctrl+C exits immediately (default).
+  /// - [immediateExit]: Single Ctrl+C exits immediately.
   /// - [doublePressExit]: First Ctrl+C shows warning, second Ctrl+C within
   ///   [ctrlCDoublePressTimeout] exits. Any other key resets the counter.
-  /// - [disabled]: Ctrl+C is treated as a regular key event, no exit.
-  CtrlCBehavior ctrlCBehavior = CtrlCBehavior.immediateExit;
+  /// - [disabled]: Ctrl+C is treated as a regular key event, no exit (default).
+  ///
+  /// Default is [disabled] to match common TUI framework behavior (like bubbletea).
+  /// Apps that want Ctrl+C to exit must explicitly set this.
+  CtrlCBehavior ctrlCBehavior = CtrlCBehavior.disabled;
 
   /// Timeout for double-press Ctrl+C exit behavior.
   Duration ctrlCDoublePressTimeout = const Duration(seconds: 1);
