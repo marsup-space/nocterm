@@ -67,7 +67,9 @@ class Terminal {
   void forceEnterAlternateScreen() {
     flush();
     backend.writeRaw(EscapeCodes.alternateBuffer);
-    clear();
+    backend.writeRaw(EscapeCodes.clearScreen);
+    backend.writeRaw(EscapeCodes.moveCursorHome);
+    flush();
     altScreenEnabled = true;
   }
 
