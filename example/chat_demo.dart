@@ -31,8 +31,8 @@ class _ChatDemoState extends State<ChatDemo> {
     'Scroll back down to re-enable auto-scroll.',
     'You can also type your own messages!',
     'Press Enter to send a message.',
-    'Press Ctrl+A to toggle auto messages.',
-    'Press Ctrl+N to clear the chat.',
+    'Press F5 to toggle auto messages.',
+    'Press F6 to clear the chat.',
   ];
   int autoMessageIndex = 0;
 
@@ -41,7 +41,7 @@ class _ChatDemoState extends State<ChatDemo> {
     super.initState();
     // Add initial messages
     _addMessage('System',
-        'Chat demo started. Press Ctrl+A to toggle auto messages, Ctrl+N to clear.',
+        'Chat demo started. Press F5 to toggle auto messages, F6 to clear.',
         isSystem: true);
     _addMessage('System', 'Type a message and press Enter to send.',
         isSystem: true);
@@ -117,10 +117,10 @@ class _ChatDemoState extends State<ChatDemo> {
   }
 
   bool _handleKeyEvent(KeyboardEvent event) {
-    if (event.logicalKey == LogicalKey.keyA && event.isControlPressed) {
+    if (event.logicalKey == LogicalKey.f5) {
       _toggleAutoMessages();
       return true;
-    } else if (event.logicalKey == LogicalKey.keyN && event.isControlPressed) {
+    } else if (event.logicalKey == LogicalKey.f6) {
       _clearChat();
       return true;
     }
@@ -229,9 +229,9 @@ class _ChatDemoState extends State<ChatDemo> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('[Ctrl+A] Toggle auto | ',
+                  Text('[F5] Toggle auto | ',
                       style: TextStyle(color: Colors.gray)),
-                  Text('[Ctrl+N] Clear chat | ',
+                  Text('[F6] Clear chat | ',
                       style: TextStyle(color: Colors.gray)),
                   Text('[↑↓] Scroll | ', style: TextStyle(color: Colors.gray)),
                   Text('[Enter] Send', style: TextStyle(color: Colors.gray)),
