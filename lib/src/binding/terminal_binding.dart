@@ -258,7 +258,14 @@ class TerminalBinding extends NoctermBinding
           }
 
           // Route the event through the component tree
-          _routeKeyboardEvent(keyEvent);
+          final handled = _routeKeyboardEvent(keyEvent);
+
+          // Ctrl+C from raw byte input should also trigger shutdown if unhandled
+          // (same as SIGINT signal handler path)
+          if (!handled && keyEvent.matches(LogicalKey.keyC, ctrl: true)) {
+            _performImmediateShutdown();
+            terminal.backend.requestExit(0);
+          }
 
           // Note: Ctrl+C (SIGINT) is routed through the event system first,
           // allowing components to intercept it. Falls back to shutdown if unhandled.
