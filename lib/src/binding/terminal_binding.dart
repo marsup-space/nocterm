@@ -718,19 +718,18 @@ class TerminalBinding extends NoctermBinding
             _ctrlCPressCount = 0;
             _lastCtrlCPressTime = null;
           });
-          _showCtrlCWarning();
+          showCtrlCWarning();
         }
         break;
     }
   }
 
   /// Show Ctrl+C warning message when in double-press exit mode.
-  void _showCtrlCWarning() {
-    terminal.write('\x1B[1;33m'); // Yellow bold
-    terminal.write('\x1B[10C');   // Move cursor right 10
-    terminal.write('[Press Ctrl+C again to exit]\x1B[0m');
-    terminal.write('\x1B[10D');   // Move cursor back left 10
-    terminal.flush();
+  /// Override this in a subclass or set a custom handler to show
+  /// visual feedback in your app.
+  void showCtrlCWarning() {
+    // Default implementation is a no-op.
+    // Subclasses or apps can override to show visual feedback.
   }
 
   /// Handle global debug key combinations.
