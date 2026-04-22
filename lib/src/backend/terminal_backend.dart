@@ -31,6 +31,11 @@ abstract class TerminalBackend {
   /// Returns null if not supported.
   Stream<void>? get shutdownStream;
 
+  /// Stream that emits when the app is resumed from suspension (SIGCONT).
+  /// Used to trigger re-render after Ctrl+Z -> fg.
+  /// Returns null if not supported.
+  Stream<void>? get resumeStream;
+
   /// Enable raw input mode (disable echo, line buffering).
   void enableRawMode();
 

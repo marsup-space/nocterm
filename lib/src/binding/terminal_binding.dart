@@ -34,10 +34,27 @@ class TerminalBinding extends NoctermBinding
   TerminalBinding(this.terminal) {
     _instance = this;
     _initializePipelineOwner();
+
+    ctrlCBehavior = _pendingCtrlCBehavior ?? CtrlCBehavior.immediateExit;
+    ctrlCDoublePressTimeout = _pendingCtrlCDoublePressTimeout ?? const Duration(seconds: 1);
   }
 
   static TerminalBinding? _instance;
   static TerminalBinding get instance => _instance!;
+
+  static CtrlCBehavior? _pendingCtrlCBehavior;
+  static Duration? _pendingCtrlCDoublePressTimeout;
+
+  /// Set Ctrl+C exit behavior before [runApp] is called.
+  ///
+  /// This must be called before [runApp] because the binding is created
+  /// during [runApp].
+  static void setCtrlCBehavior(CtrlCBehavior behavior, {Duration? doublePressTimeout}) {
+    _pendingCtrlCBehavior = behavior;
+    if (doublePressTimeout != null) {
+      _pendingCtrlCDoublePressTimeout = doublePressTimeout;
+    }
+  }
 
   final term.Terminal terminal;
   PipelineOwner? _pipelineOwner;
@@ -140,6 +157,7 @@ class TerminalBinding extends NoctermBinding
 
   StreamSubscription? _inputSubscription;
   StreamSubscription? _resizeSubscription;
+  StreamSubscription? _resumeSubscription;
 
   /// Behavior when Ctrl+C is pressed and not intercepted by a component.
   ///
@@ -221,6 +239,9 @@ class TerminalBinding extends NoctermBinding
 
     // Start listening for terminal resize events
     _startResizeHandling();
+
+    // Start listening for resume events (SIGCONT after Ctrl+Z)
+    _startResumeHandling();
 
     // Start listening for termination signals
     _startSignalHandling();
@@ -521,6 +542,22 @@ class TerminalBinding extends NoctermBinding
     }
   }
 
+  void _startResumeHandling() {
+    // Listen to backend's resume stream (SIGCONT)
+    final resumeStream = terminal.backend.resumeStream;
+    if (resumeStream != null) {
+      _resumeSubscription = resumeStream.listen((_) {
+        _performResume();
+      });
+    }
+  }
+
+  void _performResume() {
+    // Clear previous buffer to force full redraw on resume
+    _previousBuffer = null;
+    scheduleFrame();
+  }
+
   void _startSignalHandling() {
     // Listen to backend's shutdown stream
     final shutdownStream = terminal.backend.shutdownStream;
@@ -557,6 +594,7 @@ class TerminalBinding extends NoctermBinding
     pendingFrameTimer?.cancel();
     _inputSubscription?.cancel();
     _resizeSubscription?.cancel();
+    _resumeSubscription?.cancel();
     _shutdownSubscription?.cancel();
 
     // Close all controllers
@@ -901,6 +939,7 @@ class TerminalBinding extends NoctermBinding
     _shouldExit = true;
     _inputSubscription?.cancel();
     _resizeSubscription?.cancel();
+    _resumeSubscription?.cancel();
 
     // Don't cancel shutdown subscription here - let it stay active
     // so it can handle additional signals if needed

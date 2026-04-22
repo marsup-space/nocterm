@@ -13,10 +13,11 @@ import 'win32_ansi_stdin.dart';
 class StdioBackend implements TerminalBackend {
   StreamController<Size>? _resizeController;
   StreamController<void>? _shutdownController;
+  StreamController<void>? _resumeController;
   StreamSubscription? _sigwinchSubscription;
   StreamSubscription? _sigintSubscription;
   StreamSubscription? _sigtermSubscription;
-  StreamSubscription? _sigtstpSubscription;
+  StreamSubscription? _sigcontSubscription;
   Timer? _windowsResizeTimer;
   Size? _lastKnownSize;
   bool _disposed = false;
@@ -29,6 +30,7 @@ class StdioBackend implements TerminalBackend {
   void _initializeSignalHandling() {
     _resizeController = StreamController<Size>.broadcast();
     _shutdownController = StreamController<void>.broadcast();
+    _resumeController = StreamController<void>.broadcast();
 
     if (Platform.isWindows) {
       // Windows: Use Win32AnsiStdin for proper keyboard input
@@ -80,10 +82,16 @@ class StdioBackend implements TerminalBackend {
         }
       });
 
-      // Ignore Ctrl+Z (SIGTSTP) to prevent accidental suspension
-      _sigtstpSubscription = ProcessSignal.sigtstp.watch().listen((_) {
-        // Do nothing - just ignore the signal
-      });
+      // Handle SIGCONT to re-render TUI when resumed from suspension
+      try {
+        _sigcontSubscription = ProcessSignal.sigcont.watch().listen((_) {
+          if (!_disposed) {
+            _resumeController?.add(null);
+          }
+        });
+      } catch (e) {
+        // SIGCONT may not be supported on all platforms
+      }
     }
   }
 
@@ -120,6 +128,9 @@ class StdioBackend implements TerminalBackend {
 
   @override
   Stream<void>? get shutdownStream => _shutdownController?.stream;
+
+  @override
+  Stream<void>? get resumeStream => _resumeController?.stream;
 
   @override
   void enableRawMode() {
@@ -173,9 +184,10 @@ class StdioBackend implements TerminalBackend {
     _sigwinchSubscription?.cancel();
     _sigintSubscription?.cancel();
     _sigtermSubscription?.cancel();
-    _sigtstpSubscription?.cancel();
+    _sigcontSubscription?.cancel();
     _resizeController?.close();
     _shutdownController?.close();
+    _resumeController?.close();
     _win32Stdin?.close();
   }
 }

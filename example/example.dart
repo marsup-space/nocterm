@@ -4,7 +4,7 @@
 import 'package:nocterm/nocterm.dart';
 
 void main() async {
-  TerminalBinding.instance.ctrlCBehavior = CtrlCBehavior.doublePressExit;
+  TerminalBinding.setCtrlCBehavior(CtrlCBehavior.doublePressExit);
   await runApp(const TodoApp());
 }
 
