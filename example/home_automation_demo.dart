@@ -241,7 +241,7 @@ class _HomeAutomationDashboardState extends State<HomeAutomationDashboard> {
 
   Component _buildClimatePanel() {
     return Container(
-      height: 6,
+      height: 8,
       decoration: BoxDecoration(
         border: BoxBorder.all(color: Color(0xFF2A3F5F)),
         borderRadius: BorderRadius.circular(1),
@@ -278,6 +278,7 @@ class _HomeAutomationDashboardState extends State<HomeAutomationDashboard> {
             ],
           ),
           Text('──────────────', style: TextStyle(color: Color(0xFF2A3F5F))),
+          SizedBox(height: 1),
           Row(
             children: [
               Text('Mode:', style: TextStyle(color: Color(0xFF888888))),
