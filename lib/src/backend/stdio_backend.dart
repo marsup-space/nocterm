@@ -16,6 +16,7 @@ class StdioBackend implements TerminalBackend {
   StreamSubscription? _sigwinchSubscription;
   StreamSubscription? _sigintSubscription;
   StreamSubscription? _sigtermSubscription;
+  StreamSubscription? _sigtstpSubscription;
   Timer? _windowsResizeTimer;
   Size? _lastKnownSize;
   bool _disposed = false;
@@ -77,6 +78,11 @@ class StdioBackend implements TerminalBackend {
         if (!_disposed) {
           _shutdownController?.add(null);
         }
+      });
+
+      // Ignore Ctrl+Z (SIGTSTP) to prevent accidental suspension
+      _sigtstpSubscription = ProcessSignal.sigtstp.watch().listen((_) {
+        // Do nothing - just ignore the signal
       });
     }
   }
@@ -167,6 +173,7 @@ class StdioBackend implements TerminalBackend {
     _sigwinchSubscription?.cancel();
     _sigintSubscription?.cancel();
     _sigtermSubscription?.cancel();
+    _sigtstpSubscription?.cancel();
     _resizeController?.close();
     _shutdownController?.close();
     _win32Stdin?.close();
