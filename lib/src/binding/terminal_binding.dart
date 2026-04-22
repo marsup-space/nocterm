@@ -556,7 +556,7 @@ class TerminalBinding extends NoctermBinding
     // Re-enter alternate screen and re-enable all tracking modes
     // This is needed because when the process was suspended with Ctrl+Z,
     // the terminal may have restored the normal screen
-    terminal.enterAlternateScreen();
+    terminal.forceEnterAlternateScreen();
     terminal.hideCursor();
     terminal.clear();
 

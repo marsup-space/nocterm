@@ -61,6 +61,16 @@ class Terminal {
     }
   }
 
+  /// Force re-enter alternate screen mode (used after SIGCONT resume).
+  /// This bypasses the altScreenEnabled check to ensure the terminal
+  /// actually enters alternate screen mode.
+  void forceEnterAlternateScreen() {
+    flush();
+    backend.writeRaw(EscapeCodes.alternateBuffer);
+    clear();
+    altScreenEnabled = true;
+  }
+
   void leaveAlternateScreen() {
     if (altScreenEnabled) {
       // These need immediate effect, so flush any pending writes first
