@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
@@ -17,14 +18,24 @@ import 'hot_reload_mixin.dart';
 
 /// Behavior when Ctrl+C is pressed and not intercepted by a component.
 enum CtrlCBehavior {
-  /// Single Ctrl+C exits immediately (default behavior).
+  /// Single Ctrl+C exits immediately.
   immediateExit,
 
   /// First Ctrl+C shows warning, second Ctrl+C within timeout exits.
   /// Any other key resets the counter.
   doublePressExit,
 
-  /// Ctrl+C is treated as a regular key event, no exit handling.
+  /// Ctrl+C is treated as a regular key event, no exit handling (default).
+  disabled,
+}
+
+/// Behavior when Ctrl+Z is pressed and not intercepted by a component.
+enum SuspendBehavior {
+  /// Suspend the process (Ctrl+Z sends SIGTSTP).
+  /// Process can be resumed with 'fg' or 'bg'.
+  suspend,
+
+  /// Treat Ctrl+Z as a regular key event, no suspend handling (default).
   disabled,
 }
 
@@ -176,6 +187,15 @@ class TerminalBinding extends NoctermBinding
   int _ctrlCPressCount = 0;
   DateTime? _lastCtrlCPressTime;
   Timer? _ctrlCResetTimer;
+
+  /// Behavior when Ctrl+Z is pressed and not intercepted by a component.
+  ///
+  /// - [suspend]: Suspend the process (same as default terminal behavior).
+  /// - [disabled]: Treat Ctrl+Z as a regular key event, no suspend (default).
+  ///
+  /// Default is [disabled] to match common TUI framework behavior (like bubbletea).
+  SuspendBehavior suspendBehavior = SuspendBehavior.disabled;
+
   StreamSubscription? _shutdownSubscription;
   Size? _lastKnownSize;
 
@@ -317,8 +337,13 @@ class TerminalBinding extends NoctermBinding
             _handleUnhandledCtrlC();
           }
 
+          // Handle unhandled Ctrl+Z according to configured behavior
+          if (!handled && keyEvent.matches(LogicalKey.keyZ, ctrl: true)) {
+            _handleUnhandledCtrlZ();
+          }
+
           // Note: Ctrl+C (SIGINT) is routed through the event system first,
-          // allowing components to intercept it. Falls back to shutdown if unhandled.
+          // allowing components to intercept it. Falls back to configured behavior if unhandled.
         } else if (event is MouseInputEvent) {
           final mouseEvent = event.event;
 
@@ -733,6 +758,20 @@ class TerminalBinding extends NoctermBinding
   void showCtrlCWarning() {
     // Default implementation is a no-op.
     // Subclasses or apps can override to show visual feedback.
+  }
+
+  /// Handle Ctrl+Z when not intercepted by any component.
+  void _handleUnhandledCtrlZ() {
+    switch (suspendBehavior) {
+      case SuspendBehavior.disabled:
+        // Do nothing - let components or default behavior handle it
+        break;
+
+      case SuspendBehavior.suspend:
+        // Suspend the process (send SIGTSTP via shell)
+        Process.run('sh', ['-c', r'kill -STOP $$']);
+        break;
+    }
   }
 
   /// Handle global debug key combinations.
