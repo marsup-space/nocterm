@@ -11,7 +11,19 @@ import '../framework/framework.dart';
 /// Mixin that adds hot reload support to TUI bindings
 mixin HotReloadBinding on NoctermBinding {
   HotReloader? _reloader;
-  StreamSubscription<WatchEvent>? _exampleWatcher;
+  final List<StreamSubscription<WatchEvent>> _watchers = [];
+  Timer? _debounceTimer;
+  bool _reloadInProgress = false;
+
+  static final _logFile = File('.dart_tool/nocterm_hot_reload.log');
+
+  static void _log(String message) {
+    final timestamp = DateTime.now().toIso8601String();
+    try {
+      _logFile.writeAsStringSync('[$timestamp] $message\n',
+          mode: FileMode.append, flush: true);
+    } catch (_) {}
+  }
 
   /// Initialize hot reload support
   ///
@@ -25,66 +37,83 @@ mixin HotReloadBinding on NoctermBinding {
         arg.contains('--enable-asserts'));
 
     if (!vmServiceEnabled) {
-      stderr.writeln(
-          '[HotReload] VM service not enabled. Run with --enable-vm-service to enable hot reload.');
+      _log(
+          'VM service not enabled. Run with --enable-vm-service to enable hot reload.');
       return;
     }
 
     try {
       try {
+        _logFile.parent.createSync(recursive: true);
+        if (_logFile.existsSync()) _logFile.deleteSync();
+        _logFile.writeAsStringSync('');
+      } catch (_) {}
+
+      try {
         final info = await Service.getInfo();
         if (info.serverUri != null && info.serverWebSocketUri != null) {
-          stderr.writeln(
-              '[HotReload] DevTools URL: ${info.serverUri}devtools/?uri=${info.serverWebSocketUri}');
+          _log(
+              'DevTools URL: ${info.serverUri}devtools/?uri=${info.serverWebSocketUri}');
         }
       } catch (e) {
-        stderr.writeln('[HotReload] Could not retrieve VM service URL: $e');
+        _log('Could not retrieve VM service URL: $e');
       }
 
       _reloader = await HotReloader.create(
-        automaticReload: true,
-        debounceInterval: Duration(milliseconds: 100),
+        automaticReload: false,
         onBeforeReload: (ctx) {
+          if (_reloadInProgress) return false;
+          _reloadInProgress = true;
           if (ctx.event case final event?) {
-            stderr.writeln('[HotReload] Change detected: ${event.path}');
+            _log('Change detected: ${event.path}');
           }
           return true;
         },
         onAfterReload: (ctx) {
+          _reloadInProgress = false;
           switch (ctx.result) {
             case HotReloadResult.Failed:
-              stderr.writeln('[HotReload] Hot reload FAILED');
+              _log('Hot reload FAILED');
             case HotReloadResult.Succeeded:
-              stderr.writeln('[HotReload] Hot reload succeeded, reassembling...');
+              _log('Hot reload succeeded, reassembling...');
               _performReassembleAfterReload();
             case HotReloadResult.PartiallySucceeded:
-              stderr.writeln('[HotReload] Hot reload partially succeeded');
+              _log('Hot reload partially succeeded');
             case HotReloadResult.Skipped:
-              stderr.writeln('[HotReload] Hot reload skipped');
+              _log('Hot reload skipped');
           }
         },
       );
-      stderr.writeln('[HotReload] Ready. Watching for file changes...');
+      _log('Ready. Watching for file changes...');
+      _log('View log: cat .dart_tool/nocterm_hot_reload.log');
 
-      // Also watch the example/ directory since hotreloader only watches bin/lib/test
-      _watchExampleDirectory();
+      _registerWatchers();
     } catch (e, stack) {
-      stderr.writeln('[HotReload] Failed to initialize hot reload: $e');
-      stderr.writeln('[HotReload] Stack trace: $stack');
+      _log('Failed to initialize hot reload: $e');
+      _log('Stack trace: $stack');
     }
   }
 
-  /// Watch the example/ directory for changes.
-  /// hotreloader only watches bin/, lib/, and test/ by default,
-  /// but example files are commonly edited during development.
-  void _watchExampleDirectory() {
-    final exampleDir = Directory('example');
-    if (!exampleDir.existsSync()) return;
+  /// Register file watchers for all relevant directories.
+  /// We manage watchers ourselves instead of using hotreloader's automaticReload
+  /// to avoid double-reload issues and to include the example/ directory.
+  void _registerWatchers() {
+    for (final dir in ['bin', 'lib', 'test', 'example']) {
+      if (!Directory(dir).existsSync()) continue;
+      final watcher = DirectoryWatcher(dir);
+      final sub = watcher.events.listen((event) {
+        if (!event.path.endsWith('.dart')) return;
+        _onFileChanged(event.path);
+      });
+      _watchers.add(sub);
+    }
+  }
 
-    final watcher = DirectoryWatcher('example');
-    _exampleWatcher = watcher.events.listen((event) {
-      if (!event.path.endsWith('.dart')) return;
-      stderr.writeln('[HotReload] Change detected: ${event.path}');
+  void _onFileChanged(String path) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(Duration(milliseconds: 200), () {
+      if (_reloadInProgress) return;
+      _log('Change detected: $path');
       _reloader?.reloadCode();
     });
   }
@@ -94,6 +123,7 @@ mixin HotReloadBinding on NoctermBinding {
     scheduleMicrotask(() async {
       try {
         await performReassemble();
+        _log('Reassemble complete');
       } catch (e, stack) {
         NoctermError.reportError(NoctermErrorDetails(
           exception: e,
@@ -107,8 +137,11 @@ mixin HotReloadBinding on NoctermBinding {
 
   /// Stop hot reload support
   void stopHotReload() {
-    _exampleWatcher?.cancel();
-    _exampleWatcher = null;
+    _debounceTimer?.cancel();
+    for (final sub in _watchers) {
+      sub.cancel();
+    }
+    _watchers.clear();
     _reloader?.stop();
     _reloader = null;
   }
