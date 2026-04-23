@@ -20,6 +20,8 @@ dependencies:
   watcher: ^1.1.0
   image: ^4.5.4
   markdown: ^7.2.0
+  dart_markdown_parser: ^0.1.1 
+  highlight: ^0.7.0
   path: ^1.9.0
 
   # TODO put this into a separate testing package
