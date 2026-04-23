@@ -53,18 +53,18 @@ class StackDemo extends StatelessComponent {
             ),
           ),
 
-          // Centered with explicit size
-          Positioned(
-            left: 20,
-            top: 8,
-            width: 20,
-            height: 5,
-            child: Container(
-              decoration: BoxDecoration(
-                border: BoxBorder.all(style: BoxBorderStyle.double),
-              ),
-              child: const Center(
-                child: Text('Centered'),
+          // Centered
+          Positioned.fill(
+            child: Center(
+              child: Container(
+                width: 20,
+                height: 5,
+                decoration: BoxDecoration(
+                  border: BoxBorder.all(style: BoxBorderStyle.double),
+                ),
+                child: const Center(
+                  child: Text('Centered'),
+                ),
               ),
             ),
           ),
