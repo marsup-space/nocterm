@@ -183,20 +183,31 @@ echo "Hello, Terminal!"
               children: [
                 for (int i = 0; i < _tabs.length; i++) ...[
                   if (i > 0) const Text(' | '),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 1),
-                    decoration: _selectedTab == i
-                        ? BoxDecoration(
-                            color: Colors.blue,
-                          )
-                        : null,
-                    child: Text(
-                      _tabs[i],
-                      style: TextStyle(
-                        fontWeight: _selectedTab == i
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: _selectedTab == i ? Colors.white : Colors.grey,
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedTab = i;
+                      });
+                    },
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() {}),
+                      onExit: (_) => setState(() {}),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: _selectedTab == i
+                            ? BoxDecoration(
+                                color: Colors.blue,
+                              )
+                            : null,
+                        child: Text(
+                          _tabs[i],
+                          style: TextStyle(
+                            fontWeight: _selectedTab == i
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            color: _selectedTab == i ? Colors.white : Colors.grey,
+                          ),
+                        ),
                       ),
                     ),
                   ),
