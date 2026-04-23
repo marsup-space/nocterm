@@ -11,6 +11,7 @@ class MarkdownDemo extends StatefulComponent {
 
 class _MarkdownDemoState extends State<MarkdownDemo> {
   int _selectedTab = 0;
+  int? _hoveredTab;
 
   final List<String> _tabs = [
     'Overview',
@@ -190,22 +191,34 @@ echo "Hello, Terminal!"
                       });
                     },
                     child: MouseRegion(
-                      onEnter: (_) => setState(() {}),
-                      onExit: (_) => setState(() {}),
+                      onEnter: (_) {
+                        setState(() {
+                          _hoveredTab = i;
+                        });
+                      },
+                      onExit: (_) {
+                        setState(() {
+                          _hoveredTab = null;
+                        });
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 1),
                         decoration: _selectedTab == i
-                            ? BoxDecoration(
-                                color: Colors.blue,
-                              )
-                            : null,
+                            ? BoxDecoration(color: Colors.blue)
+                            : _hoveredTab == i
+                                ? BoxDecoration(color: Color.fromRGB(40, 40, 80))
+                                : null,
                         child: Text(
                           _tabs[i],
                           style: TextStyle(
-                            fontWeight: _selectedTab == i
+                            fontWeight: _selectedTab == i || _hoveredTab == i
                                 ? FontWeight.bold
                                 : FontWeight.normal,
-                            color: _selectedTab == i ? Colors.white : Colors.grey,
+                            color: _selectedTab == i
+                                ? Colors.white
+                                : _hoveredTab == i
+                                    ? Colors.brightWhite
+                                    : Colors.grey,
                           ),
                         ),
                       ),
