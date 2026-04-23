@@ -47,7 +47,8 @@ class TerminalBinding extends NoctermBinding
     _initializePipelineOwner();
 
     ctrlCBehavior = _pendingCtrlCBehavior ?? CtrlCBehavior.immediateExit;
-    ctrlCDoublePressTimeout = _pendingCtrlCDoublePressTimeout ?? const Duration(seconds: 1);
+    ctrlCDoublePressTimeout =
+        _pendingCtrlCDoublePressTimeout ?? const Duration(seconds: 1);
   }
 
   static TerminalBinding? _instance;
@@ -60,7 +61,8 @@ class TerminalBinding extends NoctermBinding
   ///
   /// This must be called before [runApp] because the binding is created
   /// during [runApp].
-  static void setCtrlCBehavior(CtrlCBehavior behavior, {Duration? doublePressTimeout}) {
+  static void setCtrlCBehavior(CtrlCBehavior behavior,
+      {Duration? doublePressTimeout}) {
     _pendingCtrlCBehavior = behavior;
     if (doublePressTimeout != null) {
       _pendingCtrlCDoublePressTimeout = doublePressTimeout;

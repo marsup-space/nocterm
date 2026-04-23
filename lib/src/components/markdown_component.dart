@@ -8,13 +8,17 @@ import 'package:nocterm/nocterm.dart';
 /// type, literal, attr, meta, tag, name, selector-class, etc.
 class SyntaxTheme {
   const SyntaxTheme({
-    this.keyword = const TextStyle(color: Colors.magenta, fontWeight: FontWeight.bold),
+    this.keyword =
+        const TextStyle(color: Colors.magenta, fontWeight: FontWeight.bold),
     this.string = const TextStyle(color: Colors.green),
-    this.comment = const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+    this.comment =
+        const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
     this.number = const TextStyle(color: Colors.cyan),
     this.builtIn = const TextStyle(color: Colors.blue),
-    this.title = const TextStyle(color: Colors.brightBlue, fontWeight: FontWeight.bold),
-    this.type = const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+    this.title =
+        const TextStyle(color: Colors.brightBlue, fontWeight: FontWeight.bold),
+    this.type =
+        const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
     this.literal = const TextStyle(color: Colors.cyan),
     this.attr = const TextStyle(color: Colors.cyan),
     this.meta = const TextStyle(color: Colors.grey),
@@ -71,23 +75,36 @@ class SyntaxTheme {
 /// Stylesheet for rendering markdown AST nodes as terminal rich text.
 class MDownStyleSheet {
   const MDownStyleSheet({
-    this.h1Style = const TextStyle(fontWeight: FontWeight.bold, color: Colors.cyan),
-    this.h2Style = const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-    this.h3Style = const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+    this.h1Style =
+        const TextStyle(fontWeight: FontWeight.bold, color: Colors.cyan),
+    this.h2Style =
+        const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+    this.h3Style =
+        const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
     this.h4Style = const TextStyle(fontWeight: FontWeight.bold),
     this.h5Style = const TextStyle(fontWeight: FontWeight.bold),
-    this.h6Style = const TextStyle(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+    this.h6Style = const TextStyle(
+        fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
     this.boldStyle = const TextStyle(fontWeight: FontWeight.bold),
     this.italicStyle = const TextStyle(fontStyle: FontStyle.italic),
-    this.strikethroughStyle = const TextStyle(decoration: TextDecoration.lineThrough),
-    this.codeStyle = const TextStyle(color: Colors.yellow, backgroundColor: Colors.black),
-    this.codeBlockStyle = const TextStyle(color: Colors.green, backgroundColor: Colors.black),
-    this.blockquoteStyle = const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-    this.linkStyle = const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
-    this.hashtagStyle = const TextStyle(color: Colors.magenta, fontWeight: FontWeight.bold),
-    this.mentionStyle = const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
-    this.mathStyle = const TextStyle(color: Colors.yellow, fontStyle: FontStyle.italic),
-    this.footnoteRefStyle = const TextStyle(color: Colors.blue, fontWeight: FontWeight.dim),
+    this.strikethroughStyle =
+        const TextStyle(decoration: TextDecoration.lineThrough),
+    this.codeStyle =
+        const TextStyle(color: Colors.yellow, backgroundColor: Colors.black),
+    this.codeBlockStyle =
+        const TextStyle(color: Colors.green, backgroundColor: Colors.black),
+    this.blockquoteStyle =
+        const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+    this.linkStyle = const TextStyle(
+        color: Colors.blue, decoration: TextDecoration.underline),
+    this.hashtagStyle =
+        const TextStyle(color: Colors.magenta, fontWeight: FontWeight.bold),
+    this.mentionStyle =
+        const TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+    this.mathStyle =
+        const TextStyle(color: Colors.yellow, fontStyle: FontStyle.italic),
+    this.footnoteRefStyle =
+        const TextStyle(color: Colors.blue, fontWeight: FontWeight.dim),
     this.listBullet = '• ',
     this.orderedListSeparator = '. ',
     this.horizontalRule = '─',
@@ -98,7 +115,8 @@ class MDownStyleSheet {
     this.diffAddStyle = const TextStyle(color: Colors.green),
     this.diffDeleteStyle = const TextStyle(color: Colors.red),
     this.diffImportantStyle = const TextStyle(color: Colors.yellow),
-    this.diffCommentStyle = const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+    this.diffCommentStyle =
+        const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
     this.diffContextStyle,
   });
 
@@ -161,10 +179,23 @@ class MDownRenderer {
         TextNode n => [TextSpan(text: n.content)],
         HeaderNode n => _renderHeader(n),
         ParagraphNode n => _renderParagraph(n),
-        BoldNode n => [TextSpan(children: renderNodes(n.children), style: styleSheet.boldStyle)],
-        ItalicNode n => [TextSpan(children: renderNodes(n.children), style: styleSheet.italicStyle)],
-        StrikethroughNode n => [TextSpan(children: renderNodes(n.children), style: styleSheet.strikethroughStyle)],
-        InlineCodeNode n => [TextSpan(text: n.code, style: styleSheet.codeStyle)],
+        BoldNode n => [
+            TextSpan(
+                children: renderNodes(n.children), style: styleSheet.boldStyle)
+          ],
+        ItalicNode n => [
+            TextSpan(
+                children: renderNodes(n.children),
+                style: styleSheet.italicStyle)
+          ],
+        StrikethroughNode n => [
+            TextSpan(
+                children: renderNodes(n.children),
+                style: styleSheet.strikethroughStyle)
+          ],
+        InlineCodeNode n => [
+            TextSpan(text: n.code, style: styleSheet.codeStyle)
+          ],
         CodeBlockNode n => _renderCodeBlock(n),
         LinkNode n => _renderLink(n),
         ImageNode n => [
@@ -178,20 +209,33 @@ class MDownRenderer {
         BlockquoteNode n => _renderBlockquote(n),
         HorizontalRuleNode() => _renderHorizontalRule(),
         TableNode n => _renderTable(n),
-        InlineMathNode n => [TextSpan(text: '\$${n.latex}\$', style: styleSheet.mathStyle)],
-        BlockMathNode n => [TextSpan(text: '\$\$${n.latex}\$\$\n\n', style: styleSheet.mathStyle)],
-        FootnoteReferenceNode n => [TextSpan(text: '[^${n.label}]', style: styleSheet.footnoteRefStyle)],
+        InlineMathNode n => [
+            TextSpan(text: '\$${n.latex}\$', style: styleSheet.mathStyle)
+          ],
+        BlockMathNode n => [
+            TextSpan(
+                text: '\$\$${n.latex}\$\$\n\n', style: styleSheet.mathStyle)
+          ],
+        FootnoteReferenceNode n => [
+            TextSpan(text: '[^${n.label}]', style: styleSheet.footnoteRefStyle)
+          ],
         FootnoteDefinitionNode n => _renderFootnoteDefinition(n),
         DetailsNode n => _renderDetails(n),
-        HashtagNode n => [TextSpan(text: '#${n.tag}', style: styleSheet.hashtagStyle)],
-        MentionNode n => [TextSpan(text: '@${n.username}', style: styleSheet.mentionStyle)],
+        HashtagNode n => [
+            TextSpan(text: '#${n.tag}', style: styleSheet.hashtagStyle)
+          ],
+        MentionNode n => [
+            TextSpan(text: '@${n.username}', style: styleSheet.mentionStyle)
+          ],
         _ => [TextSpan(text: node.toString())],
       };
 
   List<InlineSpan> _renderHeader(HeaderNode node) {
     final style = styleSheet.headerStyle(node.level);
     final prefix = '${'#' * node.level} ';
-    final children = node.children != null ? renderNodes(node.children!) : [TextSpan(text: node.content)];
+    final children = node.children != null
+        ? renderNodes(node.children!)
+        : [TextSpan(text: node.content)];
     return [
       TextSpan(
         children: [
@@ -219,7 +263,8 @@ class MDownRenderer {
     final langLabel = node.language != null
         ? TextSpan(
             text: '  ${node.language}\n',
-            style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.dim),
+            style:
+                const TextStyle(color: Colors.grey, fontWeight: FontWeight.dim),
           )
         : null;
 
@@ -257,7 +302,8 @@ class MDownRenderer {
   }
 
   List<InlineSpan> _renderDiff(String code) {
-    final contextStyle = styleSheet.diffContextStyle ?? styleSheet.codeBlockStyle;
+    final contextStyle =
+        styleSheet.diffContextStyle ?? styleSheet.codeBlockStyle;
     return code.split('\n').map((line) {
       final style = switch (line.isEmpty ? ' ' : line[0]) {
         '+' => styleSheet.diffAddStyle,
@@ -279,9 +325,13 @@ class MDownRenderer {
           TextSpan(
             children: _convertNodes(
               node.children!,
-              node.className != null ? styleSheet.syntaxTheme.styleFor(node.className!) : parentStyle,
+              node.className != null
+                  ? styleSheet.syntaxTheme.styleFor(node.className!)
+                  : parentStyle,
             ),
-            style: node.className != null ? styleSheet.syntaxTheme.styleFor(node.className!) : parentStyle,
+            style: node.className != null
+                ? styleSheet.syntaxTheme.styleFor(node.className!)
+                : parentStyle,
           ),
     ];
   }
@@ -292,11 +342,17 @@ class MDownRenderer {
       TextSpan(
         children: [
           ...linkText.map(
-            (s) => s is TextSpan ? TextSpan(text: s.text, children: s.children, style: styleSheet.linkStyle) : s,
+            (s) => s is TextSpan
+                ? TextSpan(
+                    text: s.text,
+                    children: s.children,
+                    style: styleSheet.linkStyle)
+                : s,
           ),
           TextSpan(
             text: ' [${node.url}]',
-            style: styleSheet.linkStyle.copyWith(fontWeight: FontWeight.normal, decoration: TextDecoration.none),
+            style: styleSheet.linkStyle.copyWith(
+                fontWeight: FontWeight.normal, decoration: TextDecoration.none),
           ),
         ],
       ),
@@ -369,14 +425,16 @@ class MDownRenderer {
   InlineSpan _prefixSpan(InlineSpan span, String prefix) {
     if (span is! TextSpan) return span;
     final newText = span.text?.replaceAll('\n', '\n$prefix');
-    final newChildren = span.children != null ? _prefixNewlines(span.children!, prefix) : null;
+    final newChildren =
+        span.children != null ? _prefixNewlines(span.children!, prefix) : null;
     return TextSpan(text: newText, children: newChildren, style: span.style);
   }
 
   List<InlineSpan> _renderHorizontalRule() {
     return [
       TextSpan(
-        text: '${styleSheet.horizontalRule * styleSheet.horizontalRuleWidth}\n\n',
+        text:
+            '${styleSheet.horizontalRule * styleSheet.horizontalRuleWidth}\n\n',
         style: const TextStyle(color: Colors.grey),
       ),
     ];
@@ -396,7 +454,8 @@ class MDownRenderer {
     }
 
     // Calculate column widths
-    final colCount = allRows.fold(0, (max, row) => row.length > max ? row.length : max);
+    final colCount =
+        allRows.fold(0, (max, row) => row.length > max ? row.length : max);
     final colWidths = List.filled(colCount, 0);
     for (final row in allRows) {
       for (var i = 0; i < row.length; i++) {
@@ -450,7 +509,8 @@ class MDownRenderer {
     return [
       TextSpan(
         children: [
-          TextSpan(text: '[^${node.label}]: ', style: styleSheet.footnoteRefStyle),
+          TextSpan(
+              text: '[^${node.label}]: ', style: styleSheet.footnoteRefStyle),
           ...renderNodes(node.children),
           const TextSpan(text: '\n'),
         ],
@@ -522,10 +582,12 @@ class NestedListPlugin extends BlockParserPlugin {
   static final _unorderedRe = RegExp(r'^(\s*)([-*+])\s+(.*)$');
   static final _taskRe = RegExp(r'^\[([x ])\]\s+(.*)$', caseSensitive: false);
 
-  static Match? _matchItem(String line) => _orderedRe.firstMatch(line) ?? _unorderedRe.firstMatch(line);
+  static Match? _matchItem(String line) =>
+      _orderedRe.firstMatch(line) ?? _unorderedRe.firstMatch(line);
 
   @override
-  bool canParse(String line, List<String> lines, int index) => _matchItem(line) != null;
+  bool canParse(String line, List<String> lines, int index) =>
+      _matchItem(line) != null;
 
   @override
   BlockParseResult? parse(List<String> lines, int startIndex) {
@@ -558,7 +620,8 @@ class NestedListPlugin extends BlockParserPlugin {
 
       final rawContent = m.group(3)!;
       final taskM = _taskRe.firstMatch(rawContent);
-      final checked = taskM != null ? taskM.group(1)!.toLowerCase() == 'x' : null;
+      final checked =
+          taskM != null ? taskM.group(1)!.toLowerCase() == 'x' : null;
       final content = taskM != null ? taskM.group(2)! : rawContent;
 
       i++;
@@ -582,7 +645,8 @@ class NestedListPlugin extends BlockParserPlugin {
     if (items.isEmpty) return null;
 
     return BlockParseResult(
-      node: ListNode(items: items, ordered: ordered ?? false, startIndex: startIdx),
+      node: ListNode(
+          items: items, ordered: ordered ?? false, startIndex: startIdx),
       linesConsumed: i - start,
     );
   }
@@ -667,7 +731,8 @@ class _MDownState extends State<MDown> {
   static final _tripleAsterisk = RegExp(r'\*{3}(.+?)\*{3}', dotAll: true);
 
   void _parse() {
-    final normalized = component.markdown.replaceAllMapped(_tripleAsterisk, (m) => '**_${m[1]}_**');
+    final normalized = component.markdown
+        .replaceAllMapped(_tripleAsterisk, (m) => '**_${m[1]}_**');
     final parser = MarkdownParser(plugins: registry);
     nodes = parser.parse(normalized);
     final renderer = MDownRenderer(styleSheet: component.styleSheet);

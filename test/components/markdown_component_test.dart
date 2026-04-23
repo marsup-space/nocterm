@@ -100,13 +100,15 @@ void main() {
     });
 
     test('renders headers with correct prefix', () {
-      final h1 = const HeaderNode(level: 1, content: 'Title', children: [TextNode('Title')]);
+      final h1 = const HeaderNode(
+          level: 1, content: 'Title', children: [TextNode('Title')]);
       final text = _extractText(renderer.renderNode(h1));
       expect(text, contains('# Title'));
     });
 
     test('renders h3 with ### prefix', () {
-      final h3 = const HeaderNode(level: 3, content: 'Sub', children: [TextNode('Sub')]);
+      final h3 = const HeaderNode(
+          level: 3, content: 'Sub', children: [TextNode('Sub')]);
       final text = _extractText(renderer.renderNode(h3));
       expect(text, contains('### Sub'));
     });
@@ -148,7 +150,8 @@ void main() {
     });
 
     test('renders code block with language label', () {
-      final codeBlock = const CodeBlockNode(code: 'print("hi")', language: 'dart');
+      final codeBlock =
+          const CodeBlockNode(code: 'print("hi")', language: 'dart');
       final text = _extractText(renderer.renderNode(codeBlock));
       expect(text, contains('dart'));
       expect(text, contains('print("hi")'));
@@ -161,7 +164,8 @@ void main() {
     });
 
     test('renders link with URL in brackets', () {
-      final link = const LinkNode(url: 'https://dart.dev', children: [TextNode('Dart')]);
+      final link =
+          const LinkNode(url: 'https://dart.dev', children: [TextNode('Dart')]);
       final text = _extractText(renderer.renderNode(link));
       expect(text, contains('Dart'));
       expect(text, contains('[https://dart.dev]'));
@@ -174,12 +178,14 @@ void main() {
     });
 
     test('detects unordered list', () {
-      final lists = nodes.whereType<ListNode>().where((l) => !l.ordered).toList();
+      final lists =
+          nodes.whereType<ListNode>().where((l) => !l.ordered).toList();
       expect(lists, isNotEmpty);
     });
 
     test('detects ordered list', () {
-      final lists = nodes.whereType<ListNode>().where((l) => l.ordered).toList();
+      final lists =
+          nodes.whereType<ListNode>().where((l) => l.ordered).toList();
       expect(lists, isNotEmpty);
     });
 
@@ -236,7 +242,8 @@ void main() {
     });
 
     test('renders horizontal rule', () {
-      final text = _extractText(renderer.renderNode(const HorizontalRuleNode()));
+      final text =
+          _extractText(renderer.renderNode(const HorizontalRuleNode()));
       expect(text, contains('─' * 40));
     });
 
@@ -300,7 +307,8 @@ void main() {
       final registry = ParserPluginRegistry();
       registry.register(const NestedListPlugin());
       final parser = MarkdownParser(plugins: registry);
-      final nodes = parser.parse('- parent\n  - child a\n  - child b\n- other\n');
+      final nodes =
+          parser.parse('- parent\n  - child a\n  - child b\n- other\n');
 
       final list = nodes.first as ListNode;
       expect(list.items, hasLength(2));
@@ -311,29 +319,36 @@ void main() {
     test('renders diff code block with line colors', () {
       const diffCode = CodeBlockNode(
         language: 'diff',
-        code: '+ ligne ajoutée\n- ligne supprimée\n! ligne importante\n# commentaire neutre\n  context line',
+        code:
+            '+ ligne ajoutée\n- ligne supprimée\n! ligne importante\n# commentaire neutre\n  context line',
       );
       final spans = renderer.renderNode(diffCode);
       final allSpans = _flattenSpans(spans);
 
-      final addSpan = allSpans.firstWhere((s) => s.text?.startsWith('+') ?? false);
+      final addSpan =
+          allSpans.firstWhere((s) => s.text?.startsWith('+') ?? false);
       expect(addSpan.style!.color, equals(Colors.green));
 
-      final delSpan = allSpans.firstWhere((s) => s.text?.startsWith('-') ?? false);
+      final delSpan =
+          allSpans.firstWhere((s) => s.text?.startsWith('-') ?? false);
       expect(delSpan.style!.color, equals(Colors.red));
 
-      final impSpan = allSpans.firstWhere((s) => s.text?.startsWith('!') ?? false);
+      final impSpan =
+          allSpans.firstWhere((s) => s.text?.startsWith('!') ?? false);
       expect(impSpan.style!.color, equals(Colors.yellow));
 
-      final cmtSpan = allSpans.firstWhere((s) => s.text?.startsWith('#') ?? false);
+      final cmtSpan =
+          allSpans.firstWhere((s) => s.text?.startsWith('#') ?? false);
       expect(cmtSpan.style!.color, equals(Colors.grey));
     });
 
     test('renders git language as diff', () {
-      const gitBlock = CodeBlockNode(language: 'git', code: '+ added\n- removed');
+      const gitBlock =
+          CodeBlockNode(language: 'git', code: '+ added\n- removed');
       final spans = renderer.renderNode(gitBlock);
       final allSpans = _flattenSpans(spans);
-      final addSpan = allSpans.firstWhere((s) => s.text?.startsWith('+') ?? false);
+      final addSpan =
+          allSpans.firstWhere((s) => s.text?.startsWith('+') ?? false);
       expect(addSpan.style!.color, equals(Colors.green));
     });
 
@@ -356,7 +371,8 @@ void main() {
     });
 
     test('renders footnote definition', () {
-      final def = const FootnoteDefinitionNode(label: '1', children: [TextNode('Footnote content')]);
+      final def = const FootnoteDefinitionNode(
+          label: '1', children: [TextNode('Footnote content')]);
       final text = _extractText(renderer.renderNode(def));
       expect(text, contains('[^1]: '));
       expect(text, contains('Footnote content'));
@@ -443,10 +459,12 @@ void main() {
     test('custom stylesheet is applied', () {
       final custom = MDownStyleSheet(
         h1Style: const TextStyle(color: Colors.red),
-        boldStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+        boldStyle:
+            const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
       );
       final r = MDownRenderer(styleSheet: custom);
-      final h1 = const HeaderNode(level: 1, content: 'Test', children: [TextNode('Test')]);
+      final h1 = const HeaderNode(
+          level: 1, content: 'Test', children: [TextNode('Test')]);
       final spans = r.renderNode(h1);
       final ts = spans.first as TextSpan;
       expect(ts.style!.color, equals(Colors.red));
@@ -460,7 +478,8 @@ void main() {
     });
 
     test('accepts custom stylesheet', () {
-      final sheet = MDownStyleSheet(h1Style: const TextStyle(color: Colors.red));
+      final sheet =
+          MDownStyleSheet(h1Style: const TextStyle(color: Colors.red));
       final mdown = MDown('# Test', styleSheet: sheet);
       expect(mdown.styleSheet.h1Style.color, equals(Colors.red));
     });

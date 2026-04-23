@@ -206,7 +206,8 @@ echo "Hello, Terminal!"
                         decoration: _selectedTab == i
                             ? BoxDecoration(color: Colors.blue)
                             : _hoveredTab == i
-                                ? BoxDecoration(color: Color.fromRGB(40, 40, 80))
+                                ? BoxDecoration(
+                                    color: Color.fromRGB(40, 40, 80))
                                 : null,
                         child: Text(
                           _tabs[i],
