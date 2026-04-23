@@ -1,5 +1,5 @@
 import 'package:dart_markdown_parser/dart_markdown_parser.dart';
-import 'package:nocterm/nocterm.dart';
+import 'package:nocterm/nocterm.dart' hide isNotEmpty;
 import 'package:nocterm/src/components/markdown_component.dart';
 import 'package:test/test.dart';
 

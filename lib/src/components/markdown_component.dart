@@ -647,7 +647,9 @@ class _MDownState extends State<MDown> {
     registry.register(const NestedListPlugin());
     registry.register(const HashtagPlugin());
     registry.register(const MentionPlugin());
-    for (final plugin in component.plugins) registry.register(plugin);
+    for (final plugin in component.plugins) {
+      registry.register(plugin);
+    }
 
     _parse();
   }
