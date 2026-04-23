@@ -102,10 +102,10 @@ class UserRepository:
 const fetchUsers = async (filters = {}) => {
   try {
     const query = new URLSearchParams(filters);
-    const response = await fetch(\`/api/users?\$query\`);
+    const response = await fetch(`/api/users?\$query`);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw new Error(`HTTP \${response.status}`);
     }
 
     const { data, pagination } = await response.json();
