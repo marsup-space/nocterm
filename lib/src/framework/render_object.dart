@@ -455,6 +455,17 @@ abstract class RenderObject {
       _reportException('paint', e, stack);
       _paintErrorBox(canvas, offset);
     }
+
+    // Apply repaint rainbow overlay when debug mode is active
+    if (debugRepaintRainbowEnabled && hasSize) {
+      final rect = Rect.fromLTWH(
+        offset.dx,
+        offset.dy,
+        size.width,
+        size.height,
+      );
+      canvas.applyTint(rect, debugCurrentRepaintColor.toColor());
+    }
   }
 
   /// Paint an error box when painting fails.

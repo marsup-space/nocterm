@@ -261,7 +261,7 @@ class _DebugOverlayState extends State<DebugOverlay> {
     final stats = _buildStatsText();
     final lines = stats.split('\n');
     final maxWidth =
-        lines.map((l) => l.length).reduce((a, b) => a > b ? a : b) + 2;
+        lines.map((l) => l.length).reduce((a, b) => a > b ? a : b) + 4;
     final totalHeight = lines.length + 2;
 
     return Container(
