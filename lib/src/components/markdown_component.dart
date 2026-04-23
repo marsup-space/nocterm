@@ -1,75 +1,79 @@
 import 'package:dart_markdown_parser/dart_markdown_parser.dart';
-import 'package:highlight/highlight.dart' show highlight, Node;
 import 'package:nocterm/nocterm.dart';
+import 'package:textmate_highlight/textmate_highlight.dart' as tm;
 
-/// Maps highlight.js token class names to terminal text styles.
+/// Maps TextMate scope names to terminal text styles.
 ///
-/// Token classes: keyword, string, comment, number, built_in, title,
-/// type, literal, attr, meta, tag, name, selector-class, etc.
+/// Uses a priority-based scope matching system similar to VS Code.
+/// Scopes are matched from most specific to least specific.
 class SyntaxTheme {
-  const SyntaxTheme({
-    this.keyword =
-        const TextStyle(color: Colors.magenta, fontWeight: FontWeight.bold),
-    this.string = const TextStyle(color: Colors.green),
-    this.comment =
-        const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-    this.number = const TextStyle(color: Colors.cyan),
-    this.builtIn = const TextStyle(color: Colors.blue),
-    this.title =
-        const TextStyle(color: Colors.brightBlue, fontWeight: FontWeight.bold),
-    this.type =
-        const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-    this.literal = const TextStyle(color: Colors.cyan),
-    this.attr = const TextStyle(color: Colors.cyan),
-    this.meta = const TextStyle(color: Colors.grey),
-    this.tag = const TextStyle(color: Colors.red),
-    this.name = const TextStyle(color: Colors.red),
-    this.operator = const TextStyle(color: Colors.white),
-    this.punctuation = const TextStyle(color: Colors.grey),
-    this.variable = const TextStyle(color: Colors.brightRed),
-    this.symbol = const TextStyle(color: Colors.cyan),
-    this.fallback,
+  final Map<String, TextStyle> scopeStyles;
+
+  const SyntaxTheme({this.scopeStyles = const {}});
+
+  /// Get the style for a list of TextMate scopes (most specific first).
+  TextStyle? styleForScopes(List<String> scopes) {
+    for (final scope in scopes) {
+      final exact = scopeStyles[scope];
+      if (exact != null) return exact;
+
+      final parts = scope.split('.');
+      for (var i = parts.length - 1; i >= 1; i--) {
+        final prefix = parts.sublist(0, i).join('.');
+        final match = scopeStyles[prefix];
+        if (match != null) return match;
+      }
+    }
+    return null;
+  }
+
+  /// Default dark theme with common TextMate scope mappings.
+  static const SyntaxTheme dark = SyntaxTheme(scopeStyles: {
+    'keyword': TextStyle(color: Color(0xFFC678DD), fontWeight: FontWeight.bold),
+    'keyword.control': TextStyle(color: Color(0xFFC678DD)),
+    'keyword.operator': TextStyle(color: Color(0xFF56B6C2)),
+    'keyword.declaration':
+        TextStyle(color: Color(0xFFC678DD), fontWeight: FontWeight.bold),
+    'string': TextStyle(color: Color(0xFF98C379)),
+    'string.quoted': TextStyle(color: Color(0xFF98C379)),
+    'string.template': TextStyle(color: Color(0xFF98C379)),
+    'string.interpolated': TextStyle(color: Color(0xFFE5C07B)),
+    'string.regexp': TextStyle(color: Color(0xFF98C379)),
+    'comment': TextStyle(color: Color(0xFF5C6370), fontStyle: FontStyle.italic),
+    'comment.line':
+        TextStyle(color: Color(0xFF5C6370), fontStyle: FontStyle.italic),
+    'comment.block':
+        TextStyle(color: Color(0xFF5C6370), fontStyle: FontStyle.italic),
+    'constant': TextStyle(color: Color(0xFFD19A66)),
+    'constant.numeric': TextStyle(color: Color(0xFFD19A66)),
+    'constant.language': TextStyle(color: Color(0xFFD19A66)),
+    'constant.character': TextStyle(color: Color(0xFF56B6C2)),
+    'support.class': TextStyle(color: Color(0xFFE5C07B)),
+    'support.type': TextStyle(color: Color(0xFFE5C07B)),
+    'support.function': TextStyle(color: Color(0xFF61AFEF)),
+    'support.constant': TextStyle(color: Color(0xFFD19A66)),
+    'entity.name.function': TextStyle(color: Color(0xFF61AFEF)),
+    'entity.name.type': TextStyle(color: Color(0xFFE5C07B)),
+    'entity.name.class': TextStyle(color: Color(0xFFE5C07B)),
+    'entity.name.tag': TextStyle(color: Color(0xFFE06C75)),
+    'entity.other.attribute-name': TextStyle(color: Color(0xFFD19A66)),
+    'variable': TextStyle(color: Color(0xFFE06C75)),
+    'variable.language': TextStyle(color: Color(0xFFC678DD)),
+    'variable.parameter': TextStyle(color: Color(0xFFE06C75)),
+    'variable.other': TextStyle(color: Color(0xFFE06C75)),
+    'storage': TextStyle(color: Color(0xFFC678DD)),
+    'storage.type': TextStyle(color: Color(0xFFC678DD)),
+    'storage.modifier': TextStyle(color: Color(0xFFC678DD)),
+    'punctuation': TextStyle(color: Color(0xFFABB2BF)),
+    'punctuation.separator': TextStyle(color: Color(0xFFABB2BF)),
+    'punctuation.terminator': TextStyle(color: Color(0xFFABB2BF)),
+    'punctuation.bracket': TextStyle(color: Color(0xFFABB2BF)),
+    'meta': TextStyle(color: Color(0xFFABB2BF)),
+    'meta.function': TextStyle(color: Color(0xFF61AFEF)),
+    'meta.class': TextStyle(color: Color(0xFFE5C07B)),
+    'meta.annotation': TextStyle(color: Color(0xFFC678DD)),
+    'source': TextStyle(color: Color(0xFFABB2BF)),
   });
-
-  final TextStyle keyword;
-  final TextStyle string;
-  final TextStyle comment;
-  final TextStyle number;
-  final TextStyle builtIn;
-  final TextStyle title;
-  final TextStyle type;
-  final TextStyle literal;
-  final TextStyle attr;
-  final TextStyle meta;
-  final TextStyle tag;
-  final TextStyle name;
-  final TextStyle operator;
-  final TextStyle punctuation;
-  final TextStyle variable;
-  final TextStyle symbol;
-
-  /// Fallback style for unrecognized token classes (null = inherit).
-  final TextStyle? fallback;
-
-  TextStyle? styleFor(String className) => switch (className) {
-        'keyword' || 'selector-tag' => keyword,
-        'string' || 'regexp' || 'addition' => string,
-        'comment' || 'quote' || 'deletion' => comment,
-        'number' => number,
-        'built_in' || 'builtin-name' => builtIn,
-        'title' || 'function' => title,
-        'type' || 'class' => type,
-        'literal' => literal,
-        'attr' || 'attribute' || 'selector-attr' => attr,
-        'meta' || 'meta-string' => meta,
-        'tag' => tag,
-        'name' || 'selector-id' || 'selector-class' => name,
-        'operator' || 'code' => operator,
-        'punctuation' || 'template-tag' || 'template-variable' => punctuation,
-        'variable' || 'params' => variable,
-        'symbol' || 'bullet' || 'link' => symbol,
-        _ => fallback,
-      };
 }
 
 /// Stylesheet for rendering markdown AST nodes as terminal rich text.
@@ -111,7 +115,7 @@ class MDownStyleSheet {
     this.horizontalRuleWidth = 40,
     this.taskChecked = '◉ ',
     this.taskUnchecked = '◎ ',
-    this.syntaxTheme = const SyntaxTheme(),
+    this.syntaxTheme = SyntaxTheme.dark,
     this.diffAddStyle = const TextStyle(color: Colors.green),
     this.diffDeleteStyle = const TextStyle(color: Colors.red),
     this.diffImportantStyle = const TextStyle(color: Colors.yellow),
@@ -291,14 +295,83 @@ class MDownRenderer {
     }
 
     try {
-      final result = highlight.parse(code, language: language);
-      if (result.nodes == null || result.nodes!.isEmpty) {
+      final highlighter = _getHighlighter(language);
+      if (highlighter == null) {
         return [TextSpan(text: code, style: styleSheet.codeBlockStyle)];
       }
-      return _convertNodes(result.nodes!, styleSheet.codeBlockStyle);
+      final tokens = highlighter.highlight(code);
+      if (tokens.isEmpty) {
+        return [TextSpan(text: code, style: styleSheet.codeBlockStyle)];
+      }
+      return _convertTokens(code, tokens);
     } catch (_) {
       return [TextSpan(text: code, style: styleSheet.codeBlockStyle)];
     }
+  }
+
+  static final _highlighterCache = <String, tm.Highlighter>{};
+  static Future<void>? _initFuture;
+
+  static Future<void> _ensureInitialized() {
+    return _initFuture ??= tm.Highlighter.initialize([
+      'dart',
+      'python',
+      'javascript',
+      'typescript',
+      'rust',
+      'go',
+      'java',
+      'kotlin',
+      'swift',
+      'html',
+      'css',
+      'json',
+      'yaml',
+      'sql',
+    ]);
+  }
+
+  tm.Highlighter? _getHighlighter(String language) {
+    final cached = _highlighterCache[language];
+    if (cached != null) return cached;
+
+    if (tm.Highlighter.isLanguageLoaded(language)) {
+      return _highlighterCache[language] = tm.Highlighter(language: language);
+    }
+    return null;
+  }
+
+  List<InlineSpan> _convertTokens(
+      String code, List<tm.HighlightedToken> tokens) {
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+
+    for (final token in tokens) {
+      // Add any unhighlighted text before this token
+      if (token.start > lastEnd) {
+        spans.add(TextSpan(
+          text: code.substring(lastEnd, token.start),
+          style: styleSheet.codeBlockStyle,
+        ));
+      }
+
+      final style = styleSheet.syntaxTheme.styleForScopes(token.scopes);
+      spans.add(TextSpan(
+        text: code.substring(token.start, token.end),
+        style: style ?? styleSheet.codeBlockStyle,
+      ));
+      lastEnd = token.end;
+    }
+
+    // Add any remaining unhighlighted text
+    if (lastEnd < code.length) {
+      spans.add(TextSpan(
+        text: code.substring(lastEnd),
+        style: styleSheet.codeBlockStyle,
+      ));
+    }
+
+    return spans;
   }
 
   List<InlineSpan> _renderDiff(String code) {
@@ -314,26 +387,6 @@ class MDownRenderer {
       };
       return TextSpan(text: '$line\n', style: style);
     }).toList();
-  }
-
-  List<InlineSpan> _convertNodes(List<Node> nodes, TextStyle? parentStyle) {
-    return [
-      for (final node in nodes)
-        if (node.value != null)
-          TextSpan(text: node.value, style: parentStyle)
-        else if (node.children != null)
-          TextSpan(
-            children: _convertNodes(
-              node.children!,
-              node.className != null
-                  ? styleSheet.syntaxTheme.styleFor(node.className!)
-                  : parentStyle,
-            ),
-            style: node.className != null
-                ? styleSheet.syntaxTheme.styleFor(node.className!)
-                : parentStyle,
-          ),
-    ];
   }
 
   List<InlineSpan> _renderLink(LinkNode node) {
@@ -715,6 +768,13 @@ class _MDownState extends State<MDown> {
       registry.register(plugin);
     }
 
+    MDownRenderer._ensureInitialized().then((_) {
+      if (mounted) {
+        setState(() {
+          _parse();
+        });
+      }
+    });
     _parse();
   }
 

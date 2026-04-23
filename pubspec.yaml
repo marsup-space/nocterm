@@ -21,7 +21,6 @@ dependencies:
   image: ^4.5.4
   markdown: ^7.2.0
   dart_markdown_parser: ^0.2.0 
-  highlight: ^0.7.0
   path: ^1.9.0
 
   # TODO put this into a separate testing package
@@ -33,6 +32,8 @@ dependencies:
   quiver: ^3.0.0
   equatable: ^2.0.3
   zmodem: ^0.0.6
+  textmate_highlight:
+    path: ../textmate_highlight
 
 dev_dependencies:
   test: ^1.25.6
