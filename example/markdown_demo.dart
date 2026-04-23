@@ -1,4 +1,5 @@
 import 'package:nocterm/nocterm.dart';
+import 'package:nocterm/src/components/markdown_component.dart';
 
 void main() {
   runApp(MarkdownDemo());
@@ -238,7 +239,7 @@ echo "Hello, Terminal!"
                   border: BoxBorder.all(style: BoxBorderStyle.solid),
                 ),
                 child: SingleChildScrollView(
-                  child: MarkdownText(
+                  child: MDown(
                     _markdownContent[_selectedTab],
                   ),
                 ),
