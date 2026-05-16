@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
+import 'package:nocterm/src/components/focusable.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
 import 'package:nocterm/src/rendering/mouse_hit_test.dart';
 import 'package:nocterm/src/rendering/mouse_tracker.dart';
@@ -222,8 +223,49 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
       return; // Event was handled by debug system
     }
 
-    // Try to dispatch the event to the root element
-    _dispatchKeyToElement(rootElement!, event);
+    final active = focusManager.activeFocusable;
+    if (active != null && active.mounted) {
+      if (active.handleKeyEvent(event)) {
+        return;
+      }
+    }
+
+    if (_isNavigationKey(event)) {
+      focusManager.handleNavigationKey(event);
+      return;
+    }
+
+    if (active != null && active.mounted) {
+      _bubbleToAncestors(active, event);
+    }
+  }
+
+  bool _isNavigationKey(KeyboardEvent event) {
+    final key = event.logicalKey;
+    return key == LogicalKey.tab ||
+        key == LogicalKey.arrowUp ||
+        key == LogicalKey.arrowDown ||
+        key == LogicalKey.arrowLeft ||
+        key == LogicalKey.arrowRight;
+  }
+
+  bool _bubbleToAncestors(Element start, KeyboardEvent event) {
+    Element? ancestor = start.parent;
+    while (ancestor != null) {
+      if (ancestor is FocusableElement) {
+        if (ancestor.component.onKeyEvent(event)) {
+          return true;
+        }
+      }
+      if (ancestor.component is KeyboardHandler) {
+        final handler = ancestor.component as KeyboardHandler;
+        if (handler.handleKeyEvent(event)) {
+          return true;
+        }
+      }
+      ancestor = ancestor.parent;
+    }
+    return false;
   }
 
   /// Route a mouse event through the component tree
@@ -256,39 +298,6 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
     return result;
   }
 
-  /// Dispatch a keyboard event to an element and its children
-  bool _dispatchKeyToElement(Element element, KeyboardEvent event) {
-    // Check if this element is a BlockFocus that's blocking
-    // Import BlockFocusElement dynamically to avoid circular dependencies
-    if (element.runtimeType.toString() == 'BlockFocusElement') {
-      final dynamic blockFocusElement = element;
-      if (blockFocusElement.isBlocking == true) {
-        // Block all keyboard events from reaching children
-        return true; // Event is "handled" (blocked)
-      }
-    }
-
-    // First, try to dispatch to children (depth-first)
-    bool handled = false;
-    element.visitChildren((child) {
-      if (!handled) {
-        handled = _dispatchKeyToElement(child, event);
-      }
-    });
-
-    // Check if this is a FocusableElement
-    if (!handled && element is FocusableElement) {
-      handled = element.handleKeyEvent(event);
-    }
-
-    // If no child handled it, and this element's component can handle keys, try it
-    if (!handled && element.component is KeyboardHandler) {
-      final handler = element.component as KeyboardHandler;
-      handled = handler.handleKeyEvent(event);
-    }
-
-    return handled;
-  }
 }
 
 /// Mock backend for testing that doesn't output to stdout

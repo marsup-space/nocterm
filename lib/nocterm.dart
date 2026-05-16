@@ -23,7 +23,7 @@ export 'src/binding/scheduler_binding.dart';
 export 'src/binding/scheduler_phase.dart';
 export 'src/components/basic.dart';
 export 'src/components/builder.dart';
-export 'src/components/focusable.dart';
+export 'src/components/focusable.dart' show Focusable, Focus, KeyEventHandler;
 export 'src/components/focus_scope.dart';
 export 'src/components/block_focus.dart';
 export 'src/components/scroll_controller.dart';
@@ -35,6 +35,7 @@ export 'src/components/terminal_xterm.dart';
 export 'nocterm_test.dart';
 export 'src/framework/framework.dart';
 export 'src/framework/axis.dart';
+export 'src/focus/focus_manager.dart';
 
 export 'src/components/spacer.dart';
 export 'src/components/divider.dart';

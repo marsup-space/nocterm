@@ -85,7 +85,6 @@ class _SingleChildScrollViewState extends State<SingleChildScrollView> {
     final controller = _effectiveController;
     final isVertical = component.scrollDirection == Axis.vertical;
 
-    // Arrow keys for single line scroll
     if (isVertical) {
       if (event.logicalKey == LogicalKey.arrowUp) {
         controller.scrollUp(1.0);
@@ -104,7 +103,6 @@ class _SingleChildScrollViewState extends State<SingleChildScrollView> {
       }
     }
 
-    // Page Up/Down for viewport-sized scroll
     if (event.logicalKey == LogicalKey.pageUp) {
       controller.scrollUp(controller.viewportDimension);
       return true;
@@ -113,7 +111,6 @@ class _SingleChildScrollViewState extends State<SingleChildScrollView> {
       return true;
     }
 
-    // Home/End for scroll to start/end
     if (event.logicalKey == LogicalKey.home) {
       controller.jumpTo(0);
       return true;
@@ -145,7 +142,6 @@ class _SingleChildScrollViewState extends State<SingleChildScrollView> {
     // Wrap with Focusable for keyboard scrolling if enabled
     if (component.keyboardScrollable) {
       viewport = Focusable(
-        focused: true,
         onKeyEvent: _handleKeyEvent,
         child: viewport,
       );

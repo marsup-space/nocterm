@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
+import 'package:nocterm/src/components/focusable.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
 import 'package:nocterm/src/navigation/render_theater.dart';
 import 'package:nocterm/src/rendering/scrollable_render_object.dart';
@@ -799,9 +800,44 @@ class TerminalBinding extends NoctermBinding
   bool _routeKeyboardEvent(KeyboardEvent event) {
     if (rootElement == null) return false;
 
-    // Try to dispatch the event to the root element
-    // The event will bubble through focused components
-    return _dispatchKeyToElement(rootElement!, event);
+    final active = focusManager.activeFocusable;
+    if (active != null && active.mounted) {
+      if (active.handleKeyEvent(event)) {
+        return true;
+      }
+    }
+
+    if (_isNavigationKey(event)) {
+      return focusManager.handleNavigationKey(event);
+    }
+
+    if (active != null && active.mounted) {
+      return _bubbleToAncestors(active, event);
+    }
+
+    return false;
+  }
+
+  bool _isNavigationKey(KeyboardEvent event) {
+    final key = event.logicalKey;
+    return key == LogicalKey.tab ||
+        key == LogicalKey.arrowUp ||
+        key == LogicalKey.arrowDown ||
+        key == LogicalKey.arrowLeft ||
+        key == LogicalKey.arrowRight;
+  }
+
+  bool _bubbleToAncestors(Element start, KeyboardEvent event) {
+    Element? ancestor = start.parent;
+    while (ancestor != null) {
+      if (ancestor is FocusableElement) {
+        if (ancestor.component.onKeyEvent(event)) {
+          return true;
+        }
+      }
+      ancestor = ancestor.parent;
+    }
+    return false;
   }
 
   /// Route a mouse event through the component tree
@@ -846,40 +882,6 @@ class TerminalBinding extends NoctermBinding
       result ??= _findRenderObjectInTree(child);
     });
     return result;
-  }
-
-  /// Dispatch a keyboard event to an element and its children
-  bool _dispatchKeyToElement(Element element, KeyboardEvent event) {
-    // Check if this element is a BlockFocus that's blocking
-    if (element is BlockFocusElement && element.isBlocking) {
-      // Block all keyboard events from reaching children
-      return true; // Event is handled (blocked)
-    }
-
-    // TODO: This is a hack to handle RenderTheater specially for Navigator
-    // Should be properly integrated into the render object hierarchy
-    if (element.renderObject is RenderTheater) {
-      final multiChildRenderObject = element as MultiChildRenderObjectElement;
-      if (multiChildRenderObject.children.isNotEmpty) {
-        final child = multiChildRenderObject.children.last;
-        return _dispatchKeyToElement(child, event);
-      }
-    }
-
-    // First, try to dispatch to children (depth-first)
-    bool handled = false;
-    element.visitChildren((child) {
-      if (!handled) {
-        handled = _dispatchKeyToElement(child, event);
-      }
-    });
-
-    // If no child handled it, and this element can handle keys, try it
-    if (!handled && element is FocusableElement) {
-      handled = element.handleKeyEvent(event);
-    }
-
-    return handled;
   }
 
   /// Dispatch a mouse wheel event to scrollable RenderObjects at a specific position

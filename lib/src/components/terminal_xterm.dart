@@ -228,7 +228,7 @@ class _TerminalXtermState extends State<TerminalXterm> {
   @override
   Component build(BuildContext context) {
     return Focusable(
-      focused: component.focused,
+      autofocus: component.focused,
       onKeyEvent: (event) {
         _handleKeyEvent(event);
         return true; // Consume all key events

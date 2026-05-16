@@ -77,6 +77,9 @@ abstract class NoctermBinding {
   BuildOwner? _buildOwner;
   BuildOwner get buildOwner => _buildOwner ??= createBuildOwner();
 
+  final FocusManager _focusManager = FocusManager();
+  FocusManager get focusManager => _focusManager;
+
   Element? _rootElement;
   Element? get rootElement => _rootElement;
 

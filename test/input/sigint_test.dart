@@ -117,7 +117,7 @@ void main() {
             Column(
               children: [
                 Focusable(
-                  focused: true,
+                  autofocus: true,
                   onKeyEvent: (event) {
                     if (event.matches(LogicalKey.keyC, ctrl: true)) {
                       focusedReceived = true;
@@ -128,7 +128,6 @@ void main() {
                   child: const Text('Focused'),
                 ),
                 Focusable(
-                  focused: false,
                   onKeyEvent: (event) {
                     if (event.matches(LogicalKey.keyC, ctrl: true)) {
                       unfocusedReceived = true;
@@ -164,7 +163,6 @@ void main() {
         (tester) async {
           await tester.pumpComponent(
             Focusable(
-              focused: true,
               onKeyEvent: (event) {
                 if (event.matches(LogicalKey.keyC, ctrl: true)) {
                   parentReceived = true;
@@ -173,11 +171,11 @@ void main() {
                 return false;
               },
               child: Focusable(
-                focused: true,
+                autofocus: true,
                 onKeyEvent: (event) {
                   if (event.matches(LogicalKey.keyC, ctrl: true)) {
                     childReceived = true;
-                    return true; // Handle it, parent won't see
+                    return true;
                   }
                   return false;
                 },
@@ -194,7 +192,7 @@ void main() {
           );
 
           expect(childReceived, isTrue);
-          expect(parentReceived, isFalse); // Child handled it
+          expect(parentReceived, isFalse);
         },
       );
     });
@@ -344,20 +342,19 @@ void main() {
         (tester) async {
           await tester.pumpComponent(
             Focusable(
-              focused: true,
               onKeyEvent: (event) {
                 if (event.matches(LogicalKey.keyC, ctrl: true)) {
                   handlerOrder.add('parent');
-                  return false; // Don't handle, let it bubble
+                  return false;
                 }
                 return false;
               },
               child: Focusable(
-                focused: true,
+                autofocus: true,
                 onKeyEvent: (event) {
                   if (event.matches(LogicalKey.keyC, ctrl: true)) {
                     handlerOrder.add('child');
-                    return false; // Don't handle, let it bubble
+                    return false;
                   }
                   return false;
                 },
@@ -373,7 +370,6 @@ void main() {
             ),
           );
 
-          // Child should be called before parent due to depth-first dispatch
           expect(handlerOrder, equals(['child', 'parent']));
         },
       );
@@ -461,25 +457,39 @@ void main() {
 
     test('Ctrl+C in unfocused component should not be handled', () async {
       bool unfocusedHandlerCalled = false;
+      bool focusedHandlerCalled = false;
 
       await testNocterm(
         'unfocused no handling',
         (tester) async {
           await tester.pumpComponent(
-            Focusable(
-              focused: false, // Not focused
-              onKeyEvent: (event) {
-                if (event.matches(LogicalKey.keyC, ctrl: true)) {
-                  unfocusedHandlerCalled = true;
-                  return true;
-                }
-                return false;
-              },
-              child: const Text('Unfocused App'),
+            Column(
+              children: [
+                Focusable(
+                  autofocus: true,
+                  onKeyEvent: (event) {
+                    if (event.matches(LogicalKey.keyC, ctrl: true)) {
+                      focusedHandlerCalled = true;
+                      return true;
+                    }
+                    return false;
+                  },
+                  child: const Text('Focused'),
+                ),
+                Focusable(
+                  onKeyEvent: (event) {
+                    if (event.matches(LogicalKey.keyC, ctrl: true)) {
+                      unfocusedHandlerCalled = true;
+                      return true;
+                    }
+                    return false;
+                  },
+                  child: const Text('Unfocused App'),
+                ),
+              ],
             ),
           );
 
-          // Send Ctrl+C
           await tester.sendKeyEvent(
             KeyboardEvent(
               logicalKey: LogicalKey.keyC,
@@ -487,7 +497,7 @@ void main() {
             ),
           );
 
-          // Handler should not be called because component is not focused
+          expect(focusedHandlerCalled, isTrue);
           expect(unfocusedHandlerCalled, isFalse);
         },
       );
@@ -509,7 +519,7 @@ class _CounterAppState extends State<_CounterApp> {
   @override
   Component build(BuildContext context) {
     return Focusable(
-      focused: true,
+      autofocus: true,
       onKeyEvent: (event) {
         if (event.matches(LogicalKey.keyC, ctrl: true)) {
           setState(() {
