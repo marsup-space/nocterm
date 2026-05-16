@@ -387,7 +387,6 @@ class RenderProgressBar extends RenderObject {
               text[i],
               style: TextStyle(
                 color: isFilled ? backgroundColor : valueColor,
-                decoration: TextDecoration.underline,
               ),
             );
           }

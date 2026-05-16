@@ -19,7 +19,7 @@ class KeyboardListener extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     return Focusable(
-      focused: autofocus, // Use actual autofocus value
+      autofocus: autofocus,
       onKeyEvent: (KeyboardEvent event) {
         // If onKeyEvent is provided, call it and return its result
         // Otherwise, don't handle the event

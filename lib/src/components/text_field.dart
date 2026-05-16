@@ -400,6 +400,9 @@ class _TextFieldState extends State<TextField> {
       component.onEditingComplete?.call();
       component.onSubmitted?.call(_controller.text);
       return true;
+    } else if (key == LogicalKey.backspace && event.isControlPressed) {
+      _deleteWordBackward();
+      return true;
     } else if (key == LogicalKey.backspace) {
       _handleBackspace();
       return true;
@@ -421,11 +424,13 @@ class _TextFieldState extends State<TextField> {
     } else if (key == LogicalKey.arrowUp &&
         event.isShiftPressed &&
         component.maxLines != 1) {
+      if (event.isControlPressed) return false;
       _moveCursorVertically(-1, true);
       return true;
     } else if (key == LogicalKey.arrowDown &&
         event.isShiftPressed &&
         component.maxLines != 1) {
+      if (event.isControlPressed) return false;
       _moveCursorVertically(1, true);
       return true;
     } else if (key == LogicalKey.arrowLeft) {
@@ -435,9 +440,11 @@ class _TextFieldState extends State<TextField> {
       _moveCursor(1, false);
       return true;
     } else if (key == LogicalKey.arrowUp && component.maxLines != 1) {
+      if (event.isControlPressed) return false;
       _moveCursorVertically(-1, false);
       return true;
     } else if (key == LogicalKey.arrowDown && component.maxLines != 1) {
+      if (event.isControlPressed) return false;
       _moveCursorVertically(1, false);
       return true;
     } else if (key == LogicalKey.home) {
@@ -457,9 +464,6 @@ class _TextFieldState extends State<TextField> {
       return true;
     } else if (event.matches(LogicalKey.keyV, ctrl: true)) {
       _paste();
-      return true;
-    } else if (key == LogicalKey.backspace && event.isControlPressed) {
-      _deleteWordBackward();
       return true;
     } else if (key == LogicalKey.delete && event.isControlPressed) {
       _deleteWordForward();
@@ -882,105 +886,103 @@ class _TextFieldState extends State<TextField> {
   @override
   Component build(BuildContext context) {
     final decoration = component.decoration ?? const InputDecoration();
-    final isFocused = component.focused;
 
-    // Prepare display text (for obscuring only)
-    final actualText = _controller.text;
-    String displayText = actualText;
-    if (component.obscureText) {
-      displayText = component.obscuringCharacter * displayText.length;
-    }
+    return Focusable(
+      focused: component.focused,
+      autofocus: component.focused && component.enabled,
+      disabled: !component.enabled,
+      onKeyEvent: _handleKeyEvent,
+      child: Builder(builder: (context) {
+        final isFocused = Focus.of(context);
 
-    // Handle view offset for single-line fields
-    if (component.maxLines == 1 && component.width != null) {
-      final padding = decoration.contentPadding ??
-          const EdgeInsets.symmetric(horizontal: 1);
-      final horizontalPadding = padding.left + padding.right;
-      final borderWidth = decoration.border != null ? 2.0 : 0.0;
-      // Reserve 1 column for cursor display
-      final maxVisibleWidth =
-          (component.width! - borderWidth - horizontalPadding - 1).toInt();
+        final actualText = _controller.text;
+        String displayText = actualText;
+        if (component.obscureText) {
+          displayText = component.obscuringCharacter * displayText.length;
+        }
 
-      if (maxVisibleWidth > 0 && _viewOffset < displayText.length) {
-        // Extract the visible portion based on visual width, not character count
-        // We need to iterate through grapheme clusters, not individual chars
-        final graphemes = displayText.characters.toList();
+        if (component.maxLines == 1 && component.width != null) {
+          final padding = decoration.contentPadding ??
+              const EdgeInsets.symmetric(horizontal: 1);
+          final horizontalPadding = padding.left + padding.right;
+          final borderWidth = decoration.border != null ? 2.0 : 0.0;
+          final maxVisibleWidth =
+              (component.width! - borderWidth - horizontalPadding - 1).toInt();
 
-        if (_viewOffset < graphemes.length) {
-          int startIdx = _viewOffset;
-          int endIdx = _viewOffset;
-          int visualWidth = 0;
+          if (maxVisibleWidth > 0 && _viewOffset < displayText.length) {
+            final graphemes = displayText.characters.toList();
 
-          // Find how many graphemes fit in the visible width
-          while (endIdx < graphemes.length && visualWidth < maxVisibleWidth) {
-            final graphemeWidth = UnicodeWidth.graphemeWidth(graphemes[endIdx]);
-            if (visualWidth + graphemeWidth <= maxVisibleWidth) {
-              visualWidth += graphemeWidth;
-              endIdx++;
+            if (_viewOffset < graphemes.length) {
+              int startIdx = _viewOffset;
+              int endIdx = _viewOffset;
+              int visualWidth = 0;
+
+              while (endIdx < graphemes.length && visualWidth < maxVisibleWidth) {
+                final graphemeWidth =
+                    UnicodeWidth.graphemeWidth(graphemes[endIdx]);
+                if (visualWidth + graphemeWidth <= maxVisibleWidth) {
+                  visualWidth += graphemeWidth;
+                  endIdx++;
+                } else {
+                  break;
+                }
+              }
+
+              displayText = graphemes.sublist(startIdx, endIdx).join();
             } else {
-              break;
+              displayText = '';
             }
           }
-
-          // Reconstruct the visible text from graphemes
-          displayText = graphemes.sublist(startIdx, endIdx).join();
-        } else {
-          displayText = '';
         }
-      }
-    }
 
-    // Resolve colors from theme if not provided
-    final theme = TuiTheme.of(context);
-    final effectiveCursorColor = component.cursorColor ?? theme.primary;
-    final effectiveSelectionColor =
-        component.selectionColor ?? theme.primary.withOpacity(0.4);
+        final theme = TuiTheme.of(context);
+        final effectiveCursorColor =
+            component.cursorColor ?? theme.primary;
+        final effectiveSelectionColor =
+            component.selectionColor ?? theme.primary.withOpacity(0.4);
 
-    // Build the text field content
-    Component content = _TextFieldContent(
-      text: actualText,
-      placeholder: component.placeholder,
-      style: component.style,
-      placeholderStyle: component.placeholderStyle,
-      selection: _controller.selection,
-      viewOffset: _viewOffset,
-      cursorVisible: _cursorVisible && isFocused && component.showCursor,
-      cursorColor: effectiveCursorColor,
-      cursorStyle: component.cursorStyle,
-      selectionColor: effectiveSelectionColor,
-      textAlign: component.textAlign,
-      maxLines: component.maxLines,
-      isFocused: isFocused, // Pass focus state to render object
-      obscureText: component.obscureText,
-      obscuringCharacter: component.obscuringCharacter,
-      onSelectionChange: _handleSelectionChangeFromRenderObject,
-      onRenderObjectCreate: (renderObject) {
-        _renderTextField = renderObject;
-      },
-    );
+        Component content = _TextFieldContent(
+          text: actualText,
+          placeholder: component.placeholder,
+          style: component.style,
+          placeholderStyle: component.placeholderStyle,
+          selection: _controller.selection,
+          viewOffset: _viewOffset,
+          cursorVisible:
+              _cursorVisible && isFocused && component.showCursor,
+          cursorColor: effectiveCursorColor,
+          cursorStyle: component.cursorStyle,
+          selectionColor: effectiveSelectionColor,
+          textAlign: component.textAlign,
+          maxLines: component.maxLines,
+          isFocused: isFocused,
+          obscureText: component.obscureText,
+          obscuringCharacter: component.obscuringCharacter,
+          onSelectionChange: _handleSelectionChangeFromRenderObject,
+          onRenderObjectCreate: (renderObject) {
+            _renderTextField = renderObject;
+          },
+        );
 
-    // Apply decoration
-    if (decoration.border != null || decoration.fillColor != null) {
-      content = Container(
-        width: component.width,
-        height: component.height ?? (component.maxLines ?? 1).toDouble() + 2,
-        padding: decoration.contentPadding ??
-            const EdgeInsets.symmetric(horizontal: 1),
-        decoration: BoxDecoration(
-          border: isFocused
-              ? decoration.focusedBorder ?? decoration.border
-              : decoration.border,
-          color: decoration.fillColor,
-        ),
-        child: content,
-      );
-    }
+        if (decoration.border != null || decoration.fillColor != null) {
+          content = Container(
+            width: component.width,
+            height:
+                component.height ?? (component.maxLines ?? 1).toDouble() + 2,
+            padding: decoration.contentPadding ??
+                const EdgeInsets.symmetric(horizontal: 1),
+            decoration: BoxDecoration(
+              border: isFocused
+                  ? decoration.focusedBorder ?? decoration.border
+                  : decoration.border,
+              color: decoration.fillColor,
+            ),
+            child: content,
+          );
+        }
 
-    // Wrap with Focusable for keyboard input
-    return Focusable(
-      focused: isFocused,
-      onKeyEvent: _handleKeyEvent,
-      child: content,
+        return content;
+      }),
     );
   }
 }
