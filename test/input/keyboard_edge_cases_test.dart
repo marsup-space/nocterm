@@ -60,11 +60,11 @@ void main() {
       expect(ctrlI!.logicalKey, equals(LogicalKey.tab));
       // Note: This is treated as Tab, not Ctrl+I
 
-      // Ctrl+H (0x08) is treated as Backspace in terminals
+      // Ctrl+H (0x08) is treated as Ctrl+Backspace in terminals
       parser.clear();
       final ctrlH = parser.parseBytes([0x08]);
       expect(ctrlH!.logicalKey, equals(LogicalKey.backspace));
-      expect(ctrlH.modifiers.ctrl, isFalse); // Treated as backspace, not Ctrl+H
+      expect(ctrlH.modifiers.ctrl, isTrue); // Treated as Ctrl+Backspace
     });
 
     test('Complex escape sequences', () {

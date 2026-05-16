@@ -7,6 +7,7 @@ import 'input_event.dart';
 /// Parses raw terminal input bytes into input events (keyboard and mouse).
 class InputParser {
   final List<int> _buffer = [];
+  int? _suppressCodepoint;
 
   /// Add bytes to the buffer for parsing
   void addBytes(List<int> bytes) {
@@ -50,6 +51,14 @@ class InputParser {
     if (_buffer.isEmpty) return null;
 
     final first = _buffer[0];
+
+    if (_suppressCodepoint != null && first == _suppressCodepoint) {
+      _suppressCodepoint = null;
+      _buffer.removeAt(0);
+      if (_buffer.isEmpty) return null;
+      return _parseBufferWithLength();
+    }
+    _suppressCodepoint = null;
 
     // Check for bracketed paste sequences first (ESC[200~ and ESC[201~)
     if (first == 0x1B && _buffer.length >= 2) {
@@ -166,12 +175,24 @@ class InputParser {
       );
     }
 
-    // Backspace - check before control characters since 0x08 (Ctrl+H) and 0x7F are backspace
-    if (first == 0x7F || first == 0x08) {
+    // Backspace key sends 0x7F on most modern terminals.
+    // 0x08 (Ctrl+H) is sent by Ctrl+Backspace on many terminals, or
+    // by the backspace key on legacy terminals. We treat 0x08 as
+    // Ctrl+Backspace since modern terminals use 0x7F for plain Backspace.
+    if (first == 0x7F) {
       return (
         KeyboardEvent(
           logicalKey: LogicalKey.backspace,
           modifiers: const ModifierKeys(),
+        ),
+        1
+      );
+    }
+    if (first == 0x08) {
+      return (
+        KeyboardEvent(
+          logicalKey: LogicalKey.backspace,
+          modifiers: const ModifierKeys(ctrl: true),
         ),
         1
       );
@@ -899,6 +920,10 @@ class InputParser {
 
   /// Convert a Unicode codepoint to a KeyboardEvent with the given modifiers.
   KeyboardEvent _codepointToKeyEvent(int codepoint, ModifierKeys modifiers) {
+    if (modifiers == const ModifierKeys() && codepoint >= 0x20 && codepoint < 0x7F) {
+      _suppressCodepoint = codepoint;
+    }
+
     // Map well-known codepoints to LogicalKeys
     switch (codepoint) {
       case 13: // Enter/Return
@@ -945,5 +970,6 @@ class InputParser {
   /// Clear any buffered input
   void clear() {
     _buffer.clear();
+    _suppressCodepoint = null;
   }
 }
