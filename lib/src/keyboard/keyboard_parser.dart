@@ -6,6 +6,8 @@ import 'keyboard_event.dart';
 class KeyboardParser {
   final List<int> _buffer = [];
 
+  int? _suppressCodepoint;
+
   /// Parse incoming bytes and return keyboard events.
   /// Returns null if more bytes are needed to complete a sequence.
   KeyboardEvent? parseBytes(List<int> bytes) {
@@ -28,6 +30,17 @@ class KeyboardParser {
     if (_buffer.isEmpty) return null;
 
     final first = _buffer[0];
+
+    // Check if this raw byte should be suppressed (duplicate from
+    // modifyOtherKeys level 2 or kitty protocol reporting the same
+    // printable key as both an escape sequence and a raw byte).
+    if (_suppressCodepoint != null && first == _suppressCodepoint) {
+      _suppressCodepoint = null;
+      _buffer.removeAt(0);
+      if (_buffer.isEmpty) return null;
+      return _parseBuffer();
+    }
+    _suppressCodepoint = null;
 
     // ESC sequences
     if (first == 0x1B) {
@@ -57,11 +70,18 @@ class KeyboardParser {
       );
     }
 
-    // Backspace - check before control characters since 0x08 (Ctrl+H) and 0x7F are backspace
-    if (first == 0x7F || first == 0x08) {
+    // Backspace key sends 0x7F on most modern terminals.
+    // 0x08 (Ctrl+H) is sent by Ctrl+Backspace on many terminals.
+    if (first == 0x7F) {
       return KeyboardEvent(
         logicalKey: LogicalKey.backspace,
         modifiers: const ModifierKeys(),
+      );
+    }
+    if (first == 0x08) {
+      return KeyboardEvent(
+        logicalKey: LogicalKey.backspace,
+        modifiers: const ModifierKeys(ctrl: true),
       );
     }
 
@@ -566,6 +586,13 @@ class KeyboardParser {
 
   /// Convert a Unicode codepoint to a KeyboardEvent.
   KeyboardEvent _codepointToKeyEvent(int codepoint, ModifierKeys modifiers) {
+    // When a printable character arrives via kitty/modifyOtherKeys,
+    // the terminal may also send the raw byte afterward. Flag it
+    // for suppression so we don't get duplicate input.
+    if (modifiers == const ModifierKeys() && codepoint >= 0x20 && codepoint < 0x7F) {
+      _suppressCodepoint = codepoint;
+    }
+
     switch (codepoint) {
       case 13:
         return KeyboardEvent(
@@ -604,5 +631,6 @@ class KeyboardParser {
   /// Clear any buffered input
   void clear() {
     _buffer.clear();
+    _suppressCodepoint = null;
   }
 }

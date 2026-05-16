@@ -54,8 +54,10 @@ class _Enable {
   /// This is sufficient for detecting Shift+Enter, Ctrl+Enter, etc.
   String get kittyKeyboard => '\x1B[>1u';
 
-  /// Enable xterm modifyOtherKeys mode (level 1).
-  String get modifyOtherKeys => '\x1B[>4;1m';
+  /// Enable xterm modifyOtherKeys mode (level 2).
+  /// Level 2 reports all modified keys as escape sequences,
+  /// including Backspace, which allows detecting Ctrl+Backspace.
+  String get modifyOtherKeys => '\x1B[>4;2m';
 
   List<String> get values => [
         motionTracking,
