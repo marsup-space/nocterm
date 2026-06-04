@@ -376,10 +376,12 @@ class _TextFieldState extends State<TextField> {
       return false;
     }
 
+    final isEnter = key == LogicalKey.enter || key == LogicalKey.numpadEnter;
+
     // Handle newline insertion: Shift+Enter, Ctrl+Enter, Alt+Enter, or Ctrl+J
     // With kitty keyboard protocol enabled, terminals can distinguish modified Enter.
     // Ctrl+J (linefeed) is a universal fallback that works in all terminals.
-    if (key == LogicalKey.enter &&
+    if (isEnter &&
         (event.isShiftPressed ||
             event.isControlPressed ||
             event.isAltPressed)) {
@@ -393,7 +395,7 @@ class _TextFieldState extends State<TextField> {
         _insertText('\n');
       }
       return true;
-    } else if (key == LogicalKey.enter) {
+    } else if (isEnter) {
       // Plain Enter submits in all fields (both single-line and multi-line)
       component.onEditingComplete?.call();
       component.onSubmitted?.call(_controller.text);

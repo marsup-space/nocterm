@@ -99,6 +99,7 @@ class LogicalKey {
 
   // Control keys
   static const LogicalKey enter = LogicalKey(0x0D, 'enter');
+  static const LogicalKey numpadEnter = LogicalKey(0xE00E, 'numpadEnter');
   static const LogicalKey tab = LogicalKey(0x09, 'tab');
   static const LogicalKey backspace = LogicalKey(0x7F, 'backspace');
   static const LogicalKey escape = LogicalKey(0x1B, 'escape');
