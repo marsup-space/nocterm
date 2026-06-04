@@ -573,6 +573,12 @@ class KeyboardParser {
           character: '\n',
           modifiers: modifiers,
         );
+      case 57414: // Kitty numpad enter (0xE00E)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.numpadEnter,
+          character: '\n',
+          modifiers: modifiers,
+        );
       case 9:
         return KeyboardEvent(
           logicalKey: LogicalKey.tab,
