@@ -403,6 +403,21 @@ class _TextFieldState extends State<TextField> {
     } else if (key == LogicalKey.backspace && event.isControlPressed) {
       _deleteWordBackward();
       return true;
+    } else if (key == LogicalKey.backspace && event.isAltPressed) {
+      // Alt+Backspace is the readline / macOS / VS Code convention for
+      // "delete word backward". It's the most reliable cross-terminal
+      // binding for word delete on Windows because Tabby + ConPTY (and
+      // some other terminal emulators) strip the Ctrl modifier from
+      // Ctrl+Backspace before it reaches ReadConsoleInputW, so the
+      // Ctrl+Backspace case above can't fire.
+      _deleteWordBackward();
+      return true;
+    } else if (event.matches(LogicalKey.keyW, ctrl: true)) {
+      // Ctrl+W is the readline "unix-word-rubout" binding. Same
+      // rationale as Alt+Backspace above: terminal-agnostic fallback
+      // for word delete when the terminal strips Ctrl from Backspace.
+      _deleteWordBackward();
+      return true;
     } else if (key == LogicalKey.backspace) {
       _handleBackspace();
       return true;
@@ -917,7 +932,8 @@ class _TextFieldState extends State<TextField> {
               int endIdx = _viewOffset;
               int visualWidth = 0;
 
-              while (endIdx < graphemes.length && visualWidth < maxVisibleWidth) {
+              while (
+                  endIdx < graphemes.length && visualWidth < maxVisibleWidth) {
                 final graphemeWidth =
                     UnicodeWidth.graphemeWidth(graphemes[endIdx]);
                 if (visualWidth + graphemeWidth <= maxVisibleWidth) {
@@ -936,8 +952,7 @@ class _TextFieldState extends State<TextField> {
         }
 
         final theme = TuiTheme.of(context);
-        final effectiveCursorColor =
-            component.cursorColor ?? theme.primary;
+        final effectiveCursorColor = component.cursorColor ?? theme.primary;
         final effectiveSelectionColor =
             component.selectionColor ?? theme.primary.withOpacity(0.4);
 
@@ -948,8 +963,7 @@ class _TextFieldState extends State<TextField> {
           placeholderStyle: component.placeholderStyle,
           selection: _controller.selection,
           viewOffset: _viewOffset,
-          cursorVisible:
-              _cursorVisible && isFocused && component.showCursor,
+          cursorVisible: _cursorVisible && isFocused && component.showCursor,
           cursorColor: effectiveCursorColor,
           cursorStyle: component.cursorStyle,
           selectionColor: effectiveSelectionColor,
