@@ -129,14 +129,60 @@ class UnicodeWidth {
       return true;
     }
 
+    // CJK Symbols and Punctuation (U+3000-0x303F). East Asian Wide; covers
+    // 《 U+300A, 》 U+300B, 「 U+300C, 」 U+300D, 『 U+300E, 』 U+300F,
+    // 〈 U+3008, 〉 U+3009, 、 U+3001, 。 U+3002, 【 U+3010, 】 U+3011,
+    // ideographic space, etc. Without this range, terminal cells after these
+    // characters get overwritten because the renderer thinks the next char
+    // starts in the cell they actually still occupy.
+    if (rune >= 0x3000 && rune <= 0x303F) {
+      return true;
+    }
+
+    // CJK Radicals Supplement and Kangxi Radicals.
+    if ((rune >= 0x2E80 && rune <= 0x2EFF) ||
+        (rune >= 0x2F00 && rune <= 0x2FDF)) {
+      return true;
+    }
+
+    // CJK Strokes.
+    if (rune >= 0x31C0 && rune <= 0x31EF) {
+      return true;
+    }
+
+    // CJK Compatibility (selected wide ranges).
+    if (rune >= 0x3300 && rune <= 0x33FF) {
+      return true;
+    }
+
+    // CJK Compatibility Ideographs.
+    if (rune >= 0xF900 && rune <= 0xFAFF) {
+      return true;
+    }
+
+    // Vertical Forms.
+    if (rune >= 0xFE10 && rune <= 0xFE1F) {
+      return true;
+    }
+
+    // CJK Compatibility Forms.
+    if (rune >= 0xFE30 && rune <= 0xFE4F) {
+      return true;
+    }
+
     // Hiragana and Katakana
     if ((rune >= 0x3040 && rune <= 0x309F) ||
         (rune >= 0x30A0 && rune <= 0x30FF)) {
       return true;
     }
 
-    // Full-width Latin characters
+    // Full-width Latin characters and Fullwidth Forms (the second range
+    // covers the currency/sign blocks at 0xFFE0-0xFFEE which the previous
+    // 0xFF01-0xFF60 cutoff missed).
     if (rune >= 0xFF01 && rune <= 0xFF60) {
+      return true;
+    }
+    if (rune >= 0xFFE0 && rune <= 0xFFEE) {
       return true;
     }
 

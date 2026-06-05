@@ -76,6 +76,51 @@ void main() {
       });
     });
 
+    test('CJK punctuation widths', () {
+      // CJK Symbols and Punctuation (U+3000-0x303F) and other fullwidth
+      // forms. These were previously reported as width 1, which caused
+      // the cell after them to be overwritten by the next character.
+      final punctuation = {
+        '《': 2, // U+300B Left double angle bracket
+        '》': 2, // U+300B Right double angle bracket
+        '「': 2, // U+300C Left corner bracket
+        '」': 2, // U+300D Right corner bracket
+        '『': 2, // U+300E Left white corner bracket
+        '』': 2, // U+300F Right white corner bracket
+        '〈': 2, // U+3008 Left angle bracket
+        '〉': 2, // U+3009 Right angle bracket
+        '、': 2, // U+3001 Ideographic comma
+        '。': 2, // U+3002 Ideographic full stop
+        '【': 2, // U+3010 Left black lenticular bracket
+        '】': 2, // U+3011 Right black lenticular bracket
+        '　': 2, // U+3000 Ideographic space
+      };
+
+      punctuation.forEach((char, expectedWidth) {
+        expect(
+          UnicodeWidth.runeWidth(char.runes.first),
+          equals(expectedWidth),
+          reason:
+              'CJK punctuation "$char" (U+${char.runes.first.toRadixString(16).toUpperCase()}) should have width $expectedWidth',
+        );
+      });
+    });
+
+    test('CJK punctuation in composed string widths', () {
+      // End-to-end check: bracket-wrapped CJK strings should be 8 columns
+      // (4 wide chars × 2). Before the CJK Symbols and Punctuation range
+      // was added, the brackets reported width 1 each, so these strings
+      // measured 6 (4 ideograph cells + 2 single-cell brackets) but
+      // actually occupy 8 cells — the next character after the closing
+      // bracket would overwrite the trailing cell of the last ideograph.
+      expect(UnicodeWidth.stringWidth('《标题》'), equals(8),
+          reason: '《标题》 = 4 wide chars × 2 = 8 columns');
+      expect(UnicodeWidth.stringWidth('【你好】'), equals(8),
+          reason: '【你好】 = 4 wide chars × 2 = 8 columns');
+      expect(UnicodeWidth.stringWidth('「中文」'), equals(8),
+          reason: '「中文」 = 4 wide chars × 2 = 8 columns');
+    });
+
     test('mixed string widths', () {
       final testCases = {
         'Hello World': 11, // All ASCII
