@@ -311,6 +311,17 @@ class InputParser {
     if (_buffer.length == 2) {
       final second = _buffer[1];
 
+      // Alt+Backspace (ESC + 0x7F)
+      if (second == 0x7F) {
+        return (
+          KeyboardEvent(
+            logicalKey: LogicalKey.backspace,
+            modifiers: const ModifierKeys(alt: true),
+          ),
+          2
+        );
+      }
+
       // Alt+letter (lowercase)
       if (second >= 0x61 && second <= 0x7A) {
         // Return the base key with Alt modifier
@@ -599,132 +610,35 @@ class InputParser {
 
     // Function keys and special keys with ~ terminator
     if (_buffer.contains(0x7E)) {
-      final sequence = String.fromCharCodes(_buffer);
+      // Find the ~ terminator
+      int tildeIndex = _buffer.indexOf(0x7E);
+      final paramStr = String.fromCharCodes(_buffer.sublist(2, tildeIndex));
+      final parts = paramStr.split(';');
+      final keyCode = int.tryParse(parts[0]);
+      final modifierValue = parts.length > 1 ? int.tryParse(parts[1]) : null;
 
-      // Parse sequences like ESC [ 2 ~ (Insert), ESC [ 3 ~ (Delete), etc.
-      // ESC [ X ~ = 4 bytes
-      if (sequence == '\x1B[2~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.insert,
-            modifiers: const ModifierKeys(),
-          ),
-          4
-        );
-      }
-      if (sequence == '\x1B[3~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.delete,
-            modifiers: const ModifierKeys(),
-          ),
-          4
-        );
-      }
-      if (sequence == '\x1B[5~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.pageUp,
-            modifiers: const ModifierKeys(),
-          ),
-          4
-        );
-      }
-      if (sequence == '\x1B[6~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.pageDown,
-            modifiers: const ModifierKeys(),
-          ),
-          4
-        );
+      if (keyCode != null) {
+        final modifiers = modifierValue != null
+            ? _decodeModifiers(modifierValue)
+            : const ModifierKeys();
+
+        final keyEvent = _csiTildeToKeyEvent(keyCode, modifiers);
+        if (keyEvent != null) {
+          return (keyEvent, tildeIndex + 1);
+        }
       }
 
-      // F5-F12
-      // ESC [ 1 X ~ = 5 bytes
-      if (sequence == '\x1B[15~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f5,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[17~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f6,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[18~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f7,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[19~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f8,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[20~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f9,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[21~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f10,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[23~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f11,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-      if (sequence == '\x1B[24~') {
-        return (
-          KeyboardEvent(
-            logicalKey: LogicalKey.f12,
-            modifiers: const ModifierKeys(),
-          ),
-          5
-        );
-      }
-
-      // Sequence complete but unknown - consume the sequence with ~ terminator
-      final tildeIndex = _buffer.indexOf(0x7E);
-      if (tildeIndex != -1) {
-        _buffer.removeRange(0, tildeIndex + 1);
-        // Try to parse the next event in the buffer
-        return _parseKeyboardEvent();
-      }
-      return null;
+      // Unknown ~ sequence, consume and discard
+      return (
+        KeyboardEvent(
+          logicalKey: LogicalKey(0, 'unknown'),
+          modifiers: const ModifierKeys(),
+        ),
+        tildeIndex + 1
+      );
     }
 
+      // F5-F12
     // Check if we need more bytes (sequence not complete)
     // CSI sequences typically end with a letter or ~
     final lastByte = _buffer.last;
@@ -982,6 +896,36 @@ class InputParser {
           character: '\n',
           modifiers: modifiers,
         );
+      case 57419: // Kitty Delete (0xE04B)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.delete,
+          modifiers: modifiers,
+        );
+      case 57420: // Kitty Insert (0xE04C)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.insert,
+          modifiers: modifiers,
+        );
+      case 57421: // Kitty Home (0xE04D)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.home,
+          modifiers: modifiers,
+        );
+      case 57422: // Kitty End (0xE04E)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.end,
+          modifiers: modifiers,
+        );
+      case 57423: // Kitty PageUp (0xE04F)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageUp,
+          modifiers: modifiers,
+        );
+      case 57424: // Kitty PageDown (0xE050)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageDown,
+          modifiers: modifiers,
+        );
       case 9: // Tab
         return KeyboardEvent(
           logicalKey: LogicalKey.tab,
@@ -998,6 +942,36 @@ class InputParser {
           logicalKey: LogicalKey.backspace,
           modifiers: modifiers,
         );
+      case 1: // modifyOtherKeys: Home
+        return KeyboardEvent(
+          logicalKey: LogicalKey.home,
+          modifiers: modifiers,
+        );
+      case 2: // modifyOtherKeys: Insert
+        return KeyboardEvent(
+          logicalKey: LogicalKey.insert,
+          modifiers: modifiers,
+        );
+      case 3: // modifyOtherKeys: Delete
+        return KeyboardEvent(
+          logicalKey: LogicalKey.delete,
+          modifiers: modifiers,
+        );
+      case 4: // modifyOtherKeys: End
+        return KeyboardEvent(
+          logicalKey: LogicalKey.end,
+          modifiers: modifiers,
+        );
+      case 5: // modifyOtherKeys: PageUp
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageUp,
+          modifiers: modifiers,
+        );
+      case 6: // modifyOtherKeys: PageDown
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageDown,
+          modifiers: modifiers,
+        );
       default:
         // Regular character
         final char = String.fromCharCode(codepoint);
@@ -1009,6 +983,33 @@ class InputParser {
           modifiers: modifiers,
         );
     }
+  }
+
+  /// Map CSI ~ sequence key codes to KeyboardEvents.
+  /// CSI ~ sequences: ESC [ N ~ (plain) or ESC [ N ; M ~ (with modifiers).
+  /// Key code 2=Insert, 3=Delete, 5=PageUp, 6=PageDown,
+  /// 15=F5, 17=F6, 18=F7, 19=F8, 20=F9, 21=F10, 23=F11, 24=F12
+  KeyboardEvent? _csiTildeToKeyEvent(int keyCode, ModifierKeys modifiers) {
+    final logicalKey = switch (keyCode) {
+      2 => LogicalKey.insert,
+      3 => LogicalKey.delete,
+      5 => LogicalKey.pageUp,
+      6 => LogicalKey.pageDown,
+      15 => LogicalKey.f5,
+      17 => LogicalKey.f6,
+      18 => LogicalKey.f7,
+      19 => LogicalKey.f8,
+      20 => LogicalKey.f9,
+      21 => LogicalKey.f10,
+      23 => LogicalKey.f11,
+      24 => LogicalKey.f12,
+      _ => null,
+    };
+    if (logicalKey == null) return null;
+    return KeyboardEvent(
+      logicalKey: logicalKey,
+      modifiers: modifiers,
+    );
   }
 
   /// Clear any buffered input

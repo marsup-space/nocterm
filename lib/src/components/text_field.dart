@@ -11,6 +11,17 @@ import '../utils/unicode_width.dart';
 import '../text/selection_utils.dart' as selection_utils;
 import 'text_field/cursor_movement.dart';
 
+/// Provides word boundary offsets for a given text and cursor position.
+///
+/// [previousBoundary] returns the offset of the word boundary at or before
+/// [offset], or 0 if none.
+/// [nextBoundary] returns the offset of the word boundary after [offset],
+/// or text.length if none.
+typedef WordBoundaryProvider = ({
+  int Function(String text, int offset) previousBoundary,
+  int Function(String text, int offset) nextBoundary,
+});
+
 /// Controls the text being edited.
 class TextEditingController {
   TextEditingController({String? text})
@@ -128,6 +139,7 @@ class TextField extends StatefulComponent {
     this.onSubmitted,
     this.onPaste,
     this.onKeyEvent,
+    this.wordBoundaryProvider,
     this.enabled = true,
     this.cursorColor,
     this.cursorStyle = CursorStyle.block,
@@ -174,6 +186,12 @@ class TextField extends StatefulComponent {
   /// Return `false` to let TextField handle the event normally.
   /// This allows parent widgets to intercept keys like arrow up/down for custom handling.
   final bool Function(KeyboardEvent event)? onKeyEvent;
+
+  /// Provider for word boundary calculations used by Ctrl+Backspace,
+  /// Ctrl+Delete, and Ctrl+Arrow navigation. If null, defaults to
+  /// whitespace/punctuation-based boundaries.
+  final WordBoundaryProvider? wordBoundaryProvider;
+
   final bool enabled;
 
   /// The color of the text cursor.
@@ -417,9 +435,16 @@ class _TextFieldState extends State<TextField> {
       // rationale as Alt+Backspace above: terminal-agnostic fallback
       // for word delete when the terminal strips Ctrl from Backspace.
       _deleteWordBackward();
-      return true;
-    } else if (key == LogicalKey.backspace) {
       _handleBackspace();
+      return true;
+    } else if (key == LogicalKey.delete && event.isControlPressed) {
+      _deleteWordForward();
+      return true;
+    } else if (key == LogicalKey.delete && event.isAltPressed) {
+      _deleteWordForward();
+      return true;
+    } else if (key == LogicalKey.keyD && event.isAltPressed) {
+      _deleteWordForward();
       return true;
     } else if (key == LogicalKey.delete) {
       _handleDelete();
@@ -480,8 +505,8 @@ class _TextFieldState extends State<TextField> {
     } else if (event.matches(LogicalKey.keyV, ctrl: true)) {
       _paste();
       return true;
-    } else if (key == LogicalKey.delete && event.isControlPressed) {
-      _deleteWordForward();
+    } else if (event.matches(LogicalKey.keyW, ctrl: true)) {
+      _deleteWordBackward();
       return true;
     } else if (event.matches(LogicalKey.keyT, ctrl: true)) {
       _transposeCharacters();
@@ -673,8 +698,9 @@ class _TextFieldState extends State<TextField> {
       final graphemesAfter = textAfter.characters;
       if (graphemesAfter.isNotEmpty) {
         final newTextAfter = graphemesAfter.skip(1).toString();
+        final cursorPos = clampedExtentOffset;
         _controller.text = textBefore + newTextAfter;
-        // Cursor position stays the same
+        _controller.selection = TextSelection.collapsed(offset: cursorPos);
       }
     }
   }
@@ -684,18 +710,28 @@ class _TextFieldState extends State<TextField> {
   }
 
   void _moveCursorByWord(int direction, bool extendSelection) {
+    final provider = component.wordBoundaryProvider;
+    if (provider != null) {
+      final text = _controller.text;
+      final currentOffset = _controller.selection.extentOffset;
+      final newOffset = direction < 0
+          ? provider.previousBoundary(text, currentOffset)
+          : provider.nextBoundary(text, currentOffset);
+      final newSelection = extendSelection
+          ? _controller.selection.copyWith(extentOffset: newOffset)
+          : TextSelection.collapsed(offset: newOffset);
+      if (newSelection != _controller.selection) {
+        _controller.selection = newSelection;
+      }
+      return;
+    }
     _renderTextField?.moveCursorByWord(direction, extendSelection);
-  }
-
-  bool _isSpace(String char) {
-    return char == ' ' || char == '\t' || char == '\n' || char == '\r';
   }
 
   void _deleteWordBackward() {
     final text = _controller.text;
     final selection = _controller.selection;
 
-    // Clamp selection offsets to valid range to handle race conditions
     final textLength = text.length;
     final clampedStart = selection.start.clamp(0, textLength);
     final clampedEnd = selection.end.clamp(0, textLength);
@@ -703,7 +739,6 @@ class _TextFieldState extends State<TextField> {
     final isCollapsed = clampedStart == clampedEnd;
 
     if (!isCollapsed) {
-      // Delete selected text
       _controller.text =
           text.substring(0, clampedStart) + text.substring(clampedEnd);
       _controller.selection = TextSelection.collapsed(offset: clampedStart);
@@ -712,16 +747,12 @@ class _TextFieldState extends State<TextField> {
 
     if (clampedExtentOffset == 0) return;
 
-    int start = clampedExtentOffset;
-
-    // Skip spaces backward
-    while (start > 0 && _isSpace(text[start - 1])) {
-      start--;
-    }
-
-    // Skip word characters backward
-    while (start > 0 && !_isSpace(text[start - 1])) {
-      start--;
+    final int start;
+    final provider = component.wordBoundaryProvider;
+    if (provider != null) {
+      start = provider.previousBoundary(text, clampedExtentOffset);
+    } else {
+      start = _defaultPreviousWordBoundary(text, clampedExtentOffset);
     }
 
     _controller.text =
@@ -733,7 +764,6 @@ class _TextFieldState extends State<TextField> {
     final text = _controller.text;
     final selection = _controller.selection;
 
-    // Clamp selection offsets to valid range to handle race conditions
     final textLength = text.length;
     final clampedStart = selection.start.clamp(0, textLength);
     final clampedEnd = selection.end.clamp(0, textLength);
@@ -741,7 +771,6 @@ class _TextFieldState extends State<TextField> {
     final isCollapsed = clampedStart == clampedEnd;
 
     if (!isCollapsed) {
-      // Delete selected text
       _controller.text =
           text.substring(0, clampedStart) + text.substring(clampedEnd);
       _controller.selection = TextSelection.collapsed(offset: clampedStart);
@@ -750,21 +779,48 @@ class _TextFieldState extends State<TextField> {
 
     if (clampedExtentOffset >= textLength) return;
 
-    int end = clampedExtentOffset;
-
-    // Skip current word forward
-    while (end < textLength && !_isSpace(text[end])) {
-      end++;
-    }
-
-    // Skip spaces forward
-    while (end < textLength && _isSpace(text[end])) {
-      end++;
+    final int end;
+    final provider = component.wordBoundaryProvider;
+    if (provider != null) {
+      end = provider.nextBoundary(text, clampedExtentOffset);
+    } else {
+      end = _defaultNextWordBoundary(text, clampedExtentOffset);
     }
 
     _controller.text =
         text.substring(0, clampedExtentOffset) + text.substring(end);
-    // Cursor position stays the same
+    _controller.selection =
+        TextSelection.collapsed(offset: clampedExtentOffset);
+  }
+
+  static int _defaultPreviousWordBoundary(String text, int offset) {
+    int start = offset;
+    while (start > 0 && _isSpace(text.codeUnitAt(start - 1))) {
+      start--;
+    }
+    while (start > 0 && !_isSpace(text.codeUnitAt(start - 1))) {
+      start--;
+    }
+    return start;
+  }
+
+  static int _defaultNextWordBoundary(String text, int offset) {
+    final len = text.length;
+    int end = offset;
+    while (end < len && !_isSpace(text.codeUnitAt(end))) {
+      end++;
+    }
+    while (end < len && _isSpace(text.codeUnitAt(end))) {
+      end++;
+    }
+    return end;
+  }
+
+  static bool _isSpace(int codeUnit) {
+    return codeUnit == 0x20 ||
+        codeUnit == 0x09 ||
+        codeUnit == 0x0A ||
+        codeUnit == 0x0D;
   }
 
   void _transposeCharacters() {

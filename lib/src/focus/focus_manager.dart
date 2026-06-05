@@ -75,9 +75,8 @@ class FocusManager {
   }
 
   List<FocusableElement> _getTabCandidates() {
-    final scope = _activeFocusable != null
-        ? _findFocusScope(_activeFocusable!)
-        : null;
+    final scope =
+        _activeFocusable != null ? _findFocusScope(_activeFocusable!) : null;
     return _registered
         .where((e) =>
             !e.isDisabled &&
@@ -141,7 +140,8 @@ class FocusManager {
     final parentRenderFlex = _getRenderFlex(parentScope);
     if (parentRenderFlex == null) return false;
 
-    final isMainAxisInParent = _isMainAxis(direction, parentRenderFlex.direction);
+    final isMainAxisInParent =
+        _isMainAxis(direction, parentRenderFlex.direction);
 
     if (isMainAxisInParent) {
       return _moveBetweenGroups(direction, parentScope, currentScope);
@@ -178,8 +178,7 @@ class FocusManager {
     final targetFocusables = _collectFocusables(targetGroup);
     if (targetFocusables.isEmpty) return false;
 
-    final nearest =
-        _findNearestByPosition(targetFocusables, _activeFocusable!);
+    final nearest = _findNearestByPosition(targetFocusables, _activeFocusable!);
     requestFocus(nearest ?? targetFocusables.first);
     return true;
   }
@@ -291,9 +290,7 @@ class FocusManager {
   }
 
   bool _containsFocusable(Element element) {
-    if (element is FocusableElement &&
-        element.mounted &&
-        !element.isDisabled) {
+    if (element is FocusableElement && element.mounted && !element.isDisabled) {
       return true;
     }
     bool found = false;
@@ -314,6 +311,7 @@ class FocusManager {
       }
       element.visitChildren(visit);
     }
+
     visit(root);
     return result;
   }
@@ -333,7 +331,8 @@ class FocusManager {
     final ro = _findRenderObject(element);
     if (ro == null || !ro.hasSize) return null;
     final offset = _accumulateOffset(ro);
-    return Offset(offset.dx + ro.size.width / 2, offset.dy + ro.size.height / 2);
+    return Offset(
+        offset.dx + ro.size.width / 2, offset.dy + ro.size.height / 2);
   }
 
   RenderObject? _findRenderObject(Element element) {
@@ -410,8 +409,7 @@ class FocusManager {
         return direction == _NavDirection.left ||
             direction == _NavDirection.right;
       case Axis.vertical:
-        return direction == _NavDirection.up ||
-            direction == _NavDirection.down;
+        return direction == _NavDirection.up || direction == _NavDirection.down;
     }
   }
 
@@ -425,9 +423,7 @@ class FocusManager {
   }
 
   FocusableElement? _findFirstEnabled() {
-    final sorted = _registered
-        .where((e) => !e.isDisabled && e.mounted)
-        .toList()
+    final sorted = _registered.where((e) => !e.isDisabled && e.mounted).toList()
       ..sort((a, b) => a.depth.compareTo(b.depth));
     return sorted.isNotEmpty ? sorted.first : null;
   }

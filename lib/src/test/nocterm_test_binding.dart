@@ -297,7 +297,6 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
     });
     return result;
   }
-
 }
 
 /// Mock backend for testing that doesn't output to stdout

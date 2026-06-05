@@ -394,85 +394,39 @@ class KeyboardParser {
 
     // Function keys and special keys with ~ terminator
     if (_buffer.contains(0x7E)) {
-      final sequence = String.fromCharCodes(_buffer);
+      int tildeIndex = _buffer.indexOf(0x7E);
+      final paramStr = String.fromCharCodes(_buffer.sublist(2, tildeIndex));
+      final parts = paramStr.split(';');
+      final keyCode = int.tryParse(parts[0]);
+      final modifierValue = parts.length > 1 ? int.tryParse(parts[1]) : null;
 
-      // Parse sequences like ESC [ 2 ~ (Insert), ESC [ 3 ~ (Delete), etc.
-      if (sequence == '\x1B[2~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.insert,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[3~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.delete,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[5~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.pageUp,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[6~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.pageDown,
-          modifiers: const ModifierKeys(),
-        );
-      }
-
-      // F5-F12
-      if (sequence == '\x1B[15~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f5,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[17~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f6,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[18~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f7,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[19~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f8,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[20~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f9,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[21~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f10,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[23~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f11,
-          modifiers: const ModifierKeys(),
-        );
-      }
-      if (sequence == '\x1B[24~') {
-        return KeyboardEvent(
-          logicalKey: LogicalKey.f12,
-          modifiers: const ModifierKeys(),
-        );
+      if (keyCode != null) {
+        final modifiers = modifierValue != null
+            ? _decodeModifiers(modifierValue)
+            : const ModifierKeys();
+        final logicalKey = switch (keyCode) {
+          2 => LogicalKey.insert,
+          3 => LogicalKey.delete,
+          5 => LogicalKey.pageUp,
+          6 => LogicalKey.pageDown,
+          15 => LogicalKey.f5,
+          17 => LogicalKey.f6,
+          18 => LogicalKey.f7,
+          19 => LogicalKey.f8,
+          20 => LogicalKey.f9,
+          21 => LogicalKey.f10,
+          23 => LogicalKey.f11,
+          24 => LogicalKey.f12,
+          _ => null,
+        };
+        if (logicalKey != null) {
+          return KeyboardEvent(
+            logicalKey: logicalKey,
+            modifiers: modifiers,
+          );
+        }
       }
 
-      // Sequence complete but unknown
       return null;
     }
 
@@ -661,6 +615,66 @@ class KeyboardParser {
       case 127:
         return KeyboardEvent(
           logicalKey: LogicalKey.backspace,
+          modifiers: modifiers,
+        );
+      case 1: // modifyOtherKeys: Home
+        return KeyboardEvent(
+          logicalKey: LogicalKey.home,
+          modifiers: modifiers,
+        );
+      case 2: // modifyOtherKeys: Insert
+        return KeyboardEvent(
+          logicalKey: LogicalKey.insert,
+          modifiers: modifiers,
+        );
+      case 3: // modifyOtherKeys: Delete
+        return KeyboardEvent(
+          logicalKey: LogicalKey.delete,
+          modifiers: modifiers,
+        );
+      case 4: // modifyOtherKeys: End
+        return KeyboardEvent(
+          logicalKey: LogicalKey.end,
+          modifiers: modifiers,
+        );
+      case 5: // modifyOtherKeys: PageUp
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageUp,
+          modifiers: modifiers,
+        );
+      case 6: // modifyOtherKeys: PageDown
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageDown,
+          modifiers: modifiers,
+        );
+      case 57419: // Kitty Delete (0xE04B)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.delete,
+          modifiers: modifiers,
+        );
+      case 57420: // Kitty Insert (0xE04C)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.insert,
+          modifiers: modifiers,
+        );
+      case 57421: // Kitty Home (0xE04D)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.home,
+          modifiers: modifiers,
+        );
+      case 57422: // Kitty End (0xE04E)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.end,
+          modifiers: modifiers,
+        );
+      case 57423: // Kitty PageUp (0xE04F)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageUp,
+          modifiers: modifiers,
+        );
+      case 57424: // Kitty PageDown (0xE050)
+        return KeyboardEvent(
+          logicalKey: LogicalKey.pageDown,
           modifiers: modifiers,
         );
       default:
