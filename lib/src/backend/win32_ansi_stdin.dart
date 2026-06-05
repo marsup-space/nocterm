@@ -4,6 +4,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+import 'package:meta/meta.dart';
 
 /// Windows Console API wrapper that translates Windows console input events
 /// to ANSI escape sequences, enabling Unix-like terminal behavior on Windows.
@@ -140,6 +141,78 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
     final char = keyEvent.uChar;
     final controlKeyState = keyEvent.dwControlKeyState;
 
+    // Special keys (arrows, function keys, Backspace, Delete, ...) have a
+    // pure translation that doesn't depend on instance state. Try it first
+    // so the high-surrogate / printable-char handling below only runs for
+    // ordinary text input.
+    final specialBytes = _translateSpecialKey(
+      virtualKeyCode,
+      controlKeyState,
+    );
+    if (specialBytes != null) {
+      return specialBytes;
+    }
+
+    // Discard any orphaned high surrogate from a previous IME commit
+    // unless this event is its matching low surrogate. Captured into a
+    // local so the high-surrogate branch below can decide whether to
+    // re-buffer or consume.
+    final bufferedHighSurrogate = _pendingHighSurrogate;
+    _pendingHighSurrogate = null;
+
+    // Printable ASCII
+    if (char >= 32 && char < 127) {
+      return [char];
+    }
+
+    // Non-ASCII: KEY_EVENT_RECORD.uChar holds a single UTF-16 code unit.
+    // The downstream InputParser decodes as UTF-8 (1/2/3/4-byte sequences
+    // by leading byte), so we must convert here. This is what carries
+    // IME-committed CJK / other non-ASCII characters into the framework.
+    if (char > 127) {
+      // High surrogate (0xD800-0xDBFF): the first half of a surrogate
+      // pair for a non-BMP code point. Buffer and wait for the low
+      // surrogate to arrive in the next key event.
+      if (char >= 0xD800 && char <= 0xDBFF) {
+        _pendingHighSurrogate = char;
+        return [];
+      }
+      // Low surrogate (0xDC00-0xDFFF): second half of the pair. Combine
+      // with the buffered high surrogate and emit a 4-byte UTF-8
+      // sequence for the full code point. Drop if the high half is
+      // missing (orphan).
+      if (char >= 0xDC00 && char <= 0xDFFF) {
+        if (bufferedHighSurrogate == null) return [];
+        return utf8.encode(String.fromCharCodes([bufferedHighSurrogate, char]));
+      }
+      // Single BMP code unit. Most CJK ideographs (including 你 = U+4F60,
+      // 中 = U+4E2D, 好 = U+597D) live in the BMP, so this is the hot
+      // path for typical Chinese IME input.
+      return utf8.encode(String.fromCharCode(char));
+    }
+
+    return [];
+  }
+
+  /// Pure translation for special keys (arrows, navigation, function keys,
+  /// Backspace, Delete, etc.) and Ctrl-letter chords. Returns the bytes
+  /// to emit, or `null` if the key isn't a special key and should fall
+  /// through to the printable-char / IME handling.
+  ///
+  /// Exposed `@visibleForTesting` so the byte-level translation can be
+  /// unit-tested on any platform (the rest of the backend only runs on
+  /// Windows because of `ReadConsoleInputW`).
+  @visibleForTesting
+  static List<int>? translateSpecialKey(
+    int virtualKeyCode,
+    int controlKeyState,
+  ) =>
+      _translateSpecialKey(virtualKeyCode, controlKeyState);
+
+  static List<int>? _translateSpecialKey(
+    int virtualKeyCode,
+    int controlKeyState,
+  ) {
     final ctrlPressed = (controlKeyState & _leftCtrlPressed) != 0 ||
         (controlKeyState & _rightCtrlPressed) != 0;
     final altPressed = (controlKeyState & _leftAltPressed) != 0 ||
@@ -233,13 +306,49 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
               ]
             : [0x1b, 0x5b, 0x46]; // ESC [ F
       case _vkInsert:
-        return [0x1b, 0x5b, 0x32, 0x7e]; // ESC [ 2 ~
+        return modifierCode > 1
+            ? [
+                0x1b,
+                0x5b,
+                0x32,
+                0x3b,
+                ...modifierCode.toString().codeUnits,
+                0x7e
+              ]
+            : [0x1b, 0x5b, 0x32, 0x7e]; // ESC [ 2 ~
       case _vkDelete:
-        return [0x1b, 0x5b, 0x33, 0x7e]; // ESC [ 3 ~
+        return modifierCode > 1
+            ? [
+                0x1b,
+                0x5b,
+                0x33,
+                0x3b,
+                ...modifierCode.toString().codeUnits,
+                0x7e
+              ]
+            : [0x1b, 0x5b, 0x33, 0x7e]; // ESC [ 3 ~
       case _vkPrior: // Page Up
-        return [0x1b, 0x5b, 0x35, 0x7e]; // ESC [ 5 ~
+        return modifierCode > 1
+            ? [
+                0x1b,
+                0x5b,
+                0x35,
+                0x3b,
+                ...modifierCode.toString().codeUnits,
+                0x7e
+              ]
+            : [0x1b, 0x5b, 0x35, 0x7e]; // ESC [ 5 ~
       case _vkNext: // Page Down
-        return [0x1b, 0x5b, 0x36, 0x7e]; // ESC [ 6 ~
+        return modifierCode > 1
+            ? [
+                0x1b,
+                0x5b,
+                0x36,
+                0x3b,
+                ...modifierCode.toString().codeUnits,
+                0x7e
+              ]
+            : [0x1b, 0x5b, 0x36, 0x7e]; // ESC [ 6 ~
 
       // Function keys F1-F12
       case _vkF1:
@@ -273,50 +382,32 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
       case _vkEscape:
         return [0x1b]; // ESC
       case _vkBack:
-        return [0x7f]; // DEL (Unix backspace)
+        // Plain Backspace → DEL (0x7f) like other Unix terminals.
+        // Modified Backspace (Ctrl/Alt/Shift+Backspace) goes through
+        // xterm modifyOtherKeys (CSI 27 ; mod ; 127 ~) so the parser
+        // can distinguish it from Delete. The xterm-only `ESC [ 3 ; mod ~`
+        // form is ambiguous between Backspace and Delete.
+        if (modifierCode > 1) {
+          return [
+            0x1b,
+            0x5b,
+            0x32,
+            0x37,
+            0x3b,
+            ...modifierCode.toString().codeUnits,
+            0x3b,
+            0x31,
+            0x32,
+            0x37,
+            0x7e
+          ];
+        }
+        return [0x7f];
       case _vkTab:
         return shiftPressed ? [0x1b, 0x5b, 0x5a] : [0x09]; // Shift+Tab or Tab
     }
 
-    // Discard any orphaned high surrogate from a previous IME commit
-    // unless this event is its matching low surrogate. Captured into a
-    // local so the high-surrogate branch below can decide whether to
-    // re-buffer or consume.
-    final bufferedHighSurrogate = _pendingHighSurrogate;
-    _pendingHighSurrogate = null;
-
-    // Printable ASCII
-    if (char >= 32 && char < 127) {
-      return [char];
-    }
-
-    // Non-ASCII: KEY_EVENT_RECORD.uChar holds a single UTF-16 code unit.
-    // The downstream InputParser decodes as UTF-8 (1/2/3/4-byte sequences
-    // by leading byte), so we must convert here. This is what carries
-    // IME-committed CJK / other non-ASCII characters into the framework.
-    if (char > 127) {
-      // High surrogate (0xD800-0xDBFF): the first half of a surrogate
-      // pair for a non-BMP code point. Buffer and wait for the low
-      // surrogate to arrive in the next key event.
-      if (char >= 0xD800 && char <= 0xDBFF) {
-        _pendingHighSurrogate = char;
-        return [];
-      }
-      // Low surrogate (0xDC00-0xDFFF): second half of the pair. Combine
-      // with the buffered high surrogate and emit a 4-byte UTF-8
-      // sequence for the full code point. Drop if the high half is
-      // missing (orphan).
-      if (char >= 0xDC00 && char <= 0xDFFF) {
-        if (bufferedHighSurrogate == null) return [];
-        return utf8.encode(String.fromCharCodes([bufferedHighSurrogate, char]));
-      }
-      // Single BMP code unit. Most CJK ideographs (including 你 = U+4F60,
-      // 中 = U+4E2D, 好 = U+597D) live in the BMP, so this is the hot
-      // path for typical Chinese IME input.
-      return utf8.encode(String.fromCharCode(char));
-    }
-
-    return [];
+    return null;
   }
 
   List<int> _translateMouseEvent(_MouseEventRecord mouseEvent) {

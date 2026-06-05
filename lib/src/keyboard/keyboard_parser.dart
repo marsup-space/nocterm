@@ -353,6 +353,45 @@ class KeyboardParser {
       }
     }
 
+    // Modified special keys with ~ terminator: ESC [ X ; Y ~
+    // Example: ESC [ 3 ; 5 ~ = Ctrl+Delete. Modifier uses the same
+    // 1+bitmask encoding as kitty/modifyOtherKeys.
+    if (_buffer.length >= 6 &&
+        _buffer.contains(0x7E) &&
+        _buffer.contains(0x3B)) {
+      final tildeIndex = _buffer.indexOf(0x7E);
+      final semicolonIndex = _buffer.indexOf(0x3B);
+      if (semicolonIndex > 2 && semicolonIndex < tildeIndex) {
+        final keyParam =
+            String.fromCharCodes(_buffer.sublist(2, semicolonIndex));
+        final modParam = String.fromCharCodes(
+            _buffer.sublist(semicolonIndex + 1, tildeIndex));
+        final keyCode = int.tryParse(keyParam);
+        final modValue = int.tryParse(modParam);
+        if (keyCode != null && modValue != null) {
+          final modifiers = _decodeModifiers(modValue);
+          LogicalKey? key;
+          switch (keyCode) {
+            case 2:
+              key = LogicalKey.insert;
+              break;
+            case 3:
+              key = LogicalKey.delete;
+              break;
+            case 5:
+              key = LogicalKey.pageUp;
+              break;
+            case 6:
+              key = LogicalKey.pageDown;
+              break;
+          }
+          if (key != null) {
+            return KeyboardEvent(logicalKey: key, modifiers: modifiers);
+          }
+        }
+      }
+    }
+
     // Function keys and special keys with ~ terminator
     if (_buffer.contains(0x7E)) {
       final sequence = String.fromCharCodes(_buffer);
@@ -589,7 +628,9 @@ class KeyboardParser {
     // When a printable character arrives via kitty/modifyOtherKeys,
     // the terminal may also send the raw byte afterward. Flag it
     // for suppression so we don't get duplicate input.
-    if (modifiers == const ModifierKeys() && codepoint >= 0x20 && codepoint < 0x7F) {
+    if (modifiers == const ModifierKeys() &&
+        codepoint >= 0x20 &&
+        codepoint < 0x7F) {
       _suppressCodepoint = codepoint;
     }
 
