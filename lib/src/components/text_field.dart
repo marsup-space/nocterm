@@ -435,6 +435,8 @@ class _TextFieldState extends State<TextField> {
       // rationale as Alt+Backspace above: terminal-agnostic fallback
       // for word delete when the terminal strips Ctrl from Backspace.
       _deleteWordBackward();
+      return true;
+    } else if (key == LogicalKey.backspace) {
       _handleBackspace();
       return true;
     } else if (key == LogicalKey.delete && event.isControlPressed) {
