@@ -243,6 +243,19 @@ class EdgeInsets {
   final double bottom;
 
   static const EdgeInsets zero = EdgeInsets.only();
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is EdgeInsets &&
+        other.left == left &&
+        other.top == top &&
+        other.right == right &&
+        other.bottom == bottom;
+  }
+
+  @override
+  int get hashCode => Object.hash(left, top, right, bottom);
 }
 
 /// Base class for parent data
@@ -300,8 +313,14 @@ abstract class RenderObject {
     _size = value;
   }
 
-  bool _needsLayout = true;
-  bool _needsPaint = true;
+  // Flags start false so the first markNeedsLayout / markNeedsPaint call
+  // still propagates (both short-circuit when already dirty).
+  // Initial layout is still guaranteed because a never-laid-out object has
+  // `_constraints == null`, so layout()'s skip condition cannot match.
+  // Initial paint is guaranteed because painting is an unconditional walk
+  // from the root (`paintWithContext` recurses regardless of `_needsPaint`).
+  bool _needsLayout = false;
+  bool _needsPaint = false;
   bool _hasLayoutError = false;
 
   /// Whether this render object needs layout.
@@ -323,11 +342,14 @@ abstract class RenderObject {
   /// Mark this render object as needing layout.
   ///
   /// This will cause [performLayout] to be called during the next layout pass.
-  /// The layout mark is propagated up the tree to ensure ancestors also re-layout.
+  /// The mark propagates up the tree the first time it's set; subsequent calls
+  /// short-circuit. Frame-skip in the scheduler can retire `_hasScheduledFrame`
+  /// between calls, so even a short-circuited call must prod the owner.
   void markNeedsLayout() {
-    // Always set the flag and call markNeedsPaint() to ensure requestVisualUpdate()
-    // is called, even if the flag was already set. This prevents rendering from
-    // permanently stopping when the frame-skip optimization is active.
+    if (_needsLayout) {
+      owner?.requestVisualUpdate();
+      return;
+    }
     _needsLayout = true;
     markNeedsPaint();
     parent?.markNeedsLayout();
@@ -336,11 +358,15 @@ abstract class RenderObject {
   /// Mark this render object as needing to be repainted.
   ///
   /// This will cause [paint] to be called during the next paint pass.
-  /// The paint request will propagate up to the root, which will trigger
-  /// a frame to be scheduled.
+  /// The paint request propagates up to the root on first mark, where it
+  /// requests a visual update. Subsequent calls while already dirty
+  /// short-circuit after re-requesting a visual update (same frame-skip
+  /// concern as [markNeedsLayout]).
   void markNeedsPaint() {
-    // Always set the flag (don't early return if already dirty)
-    // We still need to propagate to ensure requestVisualUpdate() is called
+    if (_needsPaint) {
+      owner?.requestVisualUpdate();
+      return;
+    }
     _needsPaint = true;
 
     if (parent != null) {
@@ -366,35 +392,29 @@ abstract class RenderObject {
     _lastError = null;
     _lastStackTrace = null;
 
-    // We can skip layout if:
-    // 1. This render object doesn't need layout (_needsLayout is false)
-    // 2. The constraints are IDENTICAL (same object instance, not just equal values)
-    //
-    // Note: We intentionally use `identical()` instead of `==` here.
-    // Using value equality (==) was causing layout bugs in complex component trees
-    // (e.g., vide_cli's tool renderers) where children would skip relayout when
-    // their content changed but constraints remained the same by value.
-    // The identical() check is more conservative and only skips when we're truly
-    // being called with the exact same constraints object.
-    if (!_needsLayout && identical(constraints, _constraints)) return;
+    // Skip layout when we're not dirty and constraints haven't changed.
+    // Elements that mutate layout-relevant state (LayoutBuilder's builder,
+    // ListView's itemBuilder, ParentDataElement's parentData, etc.) must
+    // call markNeedsLayout explicitly - do NOT swap this back to
+    // `identical()` to compensate for a missing mark elsewhere.
+    if (!_needsLayout && constraints == _constraints) return;
 
-    final constraintsChanged = !identical(constraints, _constraints);
+    // Getting past the skip above means `_needsLayout || constraints !=
+    // _constraints`, so layout always runs from here on.
     _constraints = constraints;
-    if (_needsLayout || _size == null || constraintsChanged) {
-      // Set _needsLayout = false BEFORE calling performLayout so that
-      // invokeLayoutCallback can be used during layout (its assertion
-      // checks that we're in the middle of performLayout by verifying
-      // _needsLayout is false).
-      _needsLayout = false;
-      try {
-        performLayout();
-        assert(_size != null, 'performLayout() did not set a size');
-      } catch (e, stack) {
-        _reportException('performLayout', e, stack);
-        // Set a default size to prevent cascading failures
-        _size = constraints.constrain(const Size(10, 5));
-        _hasLayoutError = true;
-      }
+    // Set _needsLayout = false BEFORE calling performLayout so that
+    // invokeLayoutCallback can be used during layout (its assertion
+    // checks that we're in the middle of performLayout by verifying
+    // _needsLayout is false).
+    _needsLayout = false;
+    try {
+      performLayout();
+      assert(_size != null, 'performLayout() did not set a size');
+    } catch (e, stack) {
+      _reportException('performLayout', e, stack);
+      // Set a default size to prevent cascading failures
+      _size = constraints.constrain(const Size(10, 5));
+      _hasLayoutError = true;
     }
   }
 
@@ -777,6 +797,9 @@ mixin ContainerRenderObjectMixin<ChildType extends RenderObject>
         _children.insert(index + 1, child);
       }
     }
+    // Child order determines layout (e.g. Flex offsets), so a reorder must
+    // re-run performLayout - paint order alone is not enough.
+    markNeedsLayout();
   }
 
   void removeAll() {

@@ -344,21 +344,35 @@ class _ListViewportElement extends RenderObjectElement {
   void update(Component newComponent) {
     super.update(newComponent);
 
-    // Remove cached children that are beyond the new item count
-    final newItemCount = (newComponent as _ListViewport).itemCount;
+    final newViewport = newComponent as _ListViewport;
+
+    // Remove cached children that are beyond the new item count.
+    // Items are keyed by index, separators by -index - 1 (a separator
+    // follows every item except the last, so valid separator indices are
+    // 0..itemCount - 2).
+    final newItemCount = newViewport.itemCount;
     if (newItemCount != null) {
-      _children.removeWhere((index, _) => index >= 0 && index >= newItemCount);
+      _children.removeWhere((key, _) {
+        if (key >= 0) return key >= newItemCount;
+        final separatorIndex = -key - 1;
+        return separatorIndex >= newItemCount - 1;
+      });
     }
 
     // Mark that children need to be updated with new props
     // This is necessary when parent state changes (e.g., selection index)
     _needsChildUpdate = true;
     _updatedThisLayout.clear();
-    // NOTE: We do NOT call markNeedsLayout() here because:
-    // 1. If layout is needed, it will be triggered by constraint changes
-    // 2. Calling it unconditionally causes infinite frame loops when parent
-    //    rebuilds frequently (e.g., due to ValueListenableBuilder)
-    // 3. The _needsChildUpdate flag ensures children get updated on next layout
+
+    // update() only runs when the viewport component actually changed
+    // (identical components short-circuit in updateChild). Children are
+    // built during layout, so the changed component can only take effect
+    // if a layout pass happens. Builder identity is no proxy for content -
+    // a stable (hoisted) itemBuilder can read state that changed this
+    // build pass - so there is no narrower safe gate than always marking.
+    // This cannot loop: marking layout dirty never dirties an element, so
+    // a frame with no dirty elements goes idle.
+    renderObject.markNeedsLayout();
   }
 
   /// Called by RenderListViewport after layout completes to reset update flags.
@@ -535,6 +549,10 @@ class RenderListViewport extends RenderObject with ScrollableRenderObjectMixin {
         _selectionRangeFor = selectionRangeFor {
     _controller.addListener(_handleScrollUpdate);
     _controller.attach(this);
+    // Selection drag state is a global, so we subscribe explicitly -
+    // changes there affect whether performLayout force-builds the selection
+    // range but wouldn't otherwise propagate through the normal dirty path.
+    SelectionDragState.addListener(markNeedsLayout);
   }
 
   _ListViewportElement? _element;
@@ -694,6 +712,7 @@ class RenderListViewport extends RenderObject with ScrollableRenderObjectMixin {
   void dispose() {
     _controller.removeListener(_handleScrollUpdate);
     _controller.detach(this);
+    SelectionDragState.removeListener(markNeedsLayout);
     super.dispose();
   }
 

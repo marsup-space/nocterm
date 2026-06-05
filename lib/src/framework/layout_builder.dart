@@ -73,13 +73,17 @@ class LayoutBuilderElement extends RenderObjectElement {
   @override
   void update(Component newComponent) {
     super.update(newComponent);
-    // Mark that we need to rebuild with the new builder function.
-    // We DON'T call markNeedsLayout() here because:
-    // 1. If constraints change, layout will be triggered by the parent anyway
-    // 2. If only the builder changed, we'll use it next time layout runs
-    // 3. Calling markNeedsLayout unconditionally causes infinite frame loops
-    //    when the parent rebuilds frequently (e.g., due to ValueListenableBuilder)
     _needsBuild = true;
+    // update() only runs when the component instance actually changed
+    // (identical components short-circuit in updateChild). The builder runs
+    // during layout, so the new component can only take effect if a layout
+    // pass happens. Builder identity is no proxy for content: a stable
+    // (hoisted) closure can read state that changed this build pass, so
+    // there is no narrower safe gate than always marking. This matches
+    // Flutter's _LayoutBuilderElement.update and cannot loop: marking
+    // layout dirty never dirties an element, so a frame with no dirty
+    // elements goes idle.
+    renderObject.markNeedsLayout();
   }
 
   @override

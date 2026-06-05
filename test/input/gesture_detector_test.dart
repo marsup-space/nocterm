@@ -150,9 +150,7 @@ void main() {
       );
     });
 
-    test('triggers onLongPress when held',
-        skip: 'Known issue: Long press timer not advancing in test environment',
-        () async {
+    test('triggers onLongPress when held', () async {
       await testNocterm(
         'onLongPress callback',
         (tester) async {

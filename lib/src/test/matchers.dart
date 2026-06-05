@@ -148,6 +148,53 @@ class HasStyledText extends Matcher {
   }
 }
 
+/// Matcher that checks the terminal contains text exactly once.
+///
+/// Stronger than [ContainsText]: it also fails when the text appears at
+/// multiple positions - the typical symptom of stale content painted at
+/// an old offset alongside fresh content at the new one.
+class ContainsTextOnce extends Matcher {
+  final String text;
+
+  const ContainsTextOnce(this.text);
+
+  @override
+  bool matches(dynamic item, Map matchState) {
+    if (item is TerminalState) {
+      final found = item.findText(text);
+      matchState['matches'] = found;
+      return found.length == 1;
+    }
+    return false;
+  }
+
+  @override
+  Description describe(Description description) {
+    return description.add('contains text "$text" exactly once');
+  }
+
+  @override
+  Description describeMismatch(
+    dynamic item,
+    Description mismatchDescription,
+    Map matchState,
+    bool verbose,
+  ) {
+    if (item is TerminalState) {
+      final found = (matchState['matches'] as List?) ?? item.findText(text);
+      if (found.isEmpty) {
+        return mismatchDescription
+            .add('text not found; actual content:\n')
+            .add(item.renderToString());
+      }
+      return mismatchDescription
+          .add('found ${found.length} occurrences at: ')
+          .addAll('', ', ', '', found.map((m) => '$m'));
+    }
+    return mismatchDescription.add('is not a TerminalState');
+  }
+}
+
 /// Matcher that compares terminal state to a snapshot
 class MatchesSnapshot extends Matcher {
   final String snapshot;
@@ -229,6 +276,9 @@ Matcher containsText(String text) => ContainsText(text);
 
 /// Matches if terminal has text at the specified position
 Matcher hasTextAt(int x, int y, String text) => HasTextAt(x, y, text);
+
+/// Matches if terminal contains the specified text exactly once
+Matcher containsTextOnce(String text) => ContainsTextOnce(text);
 
 /// Matches if terminal has styled text
 Matcher hasStyledText(String text, TextStyle style) =>
