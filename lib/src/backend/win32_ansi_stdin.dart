@@ -19,6 +19,11 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
       StreamController<List<int>>.broadcast();
   bool _running = false;
   int _lastButtonState = 0;
+  // Buffered high surrogate (0xD800-0xDBFF) from a previous IME key event,
+  // waiting for its matching low surrogate. Used to reassemble non-BMP
+  // characters (e.g. emoji, supplementary-plane CJK) into a single 4-byte
+  // UTF-8 sequence across two consecutive KEY_EVENT_RECORDs.
+  int? _pendingHighSurrogate;
 
   /// Factory constructor - returns singleton instance
   factory Win32AnsiStdin() {
@@ -60,24 +65,52 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
   Future<void> _eventLoop() async {
     final pInputRecord = calloc<_InputRecord>();
     final pEventsRead = calloc<Uint32>();
+    final pEventCount = calloc<Uint32>();
+    final stopwatch = Stopwatch()..start();
+    // Game-loop pacing: the "frame" is the drain pass below. We sleep only
+    // for the time remaining in the 16ms budget, not a fixed wait on top of
+    // the work. A slow pass (e.g. a big framework redraw, or a burst of
+    // console events to translate) just skips the sleep and runs the next
+    // pass immediately, so we never double-charge the wait and the input
+    // loop stays responsive even when work outpaces the frame budget.
+    const frameBudget = Duration(milliseconds: 16);
 
     try {
       while (_running) {
-        // Yield to Dart event loop
-        await Future.delayed(Duration.zero);
+        final deadlineUs =
+            stopwatch.elapsedMicroseconds + frameBudget.inMicroseconds;
+
+        // Drain the console input queue. GetNumberOfConsoleInputEvents is
+        // non-blocking, so the subsequent ReadConsoleInputW returns
+        // immediately and the isolate is never blocked waiting for input.
+        while (_running &&
+            _getNumberOfConsoleInputEvents(_inputHandle, pEventCount) != 0 &&
+            pEventCount.value > 0) {
+          final result =
+              _readConsoleInputW(_inputHandle, pInputRecord, 1, pEventsRead);
+          if (result != 0 && pEventsRead.value > 0) {
+            _translateAndFire(pInputRecord.ref);
+          } else {
+            break;
+          }
+        }
 
         if (!_running) break;
 
-        // Read one input event
-        final result =
-            _readConsoleInputW(_inputHandle, pInputRecord, 1, pEventsRead);
-        if (result != 0 && pEventsRead.value > 0) {
-          _translateAndFire(pInputRecord.ref);
+        // Sleep until the deadline. If the drain already blew past it,
+        // just yield once (a microtask hop) so we don't burn CPU catching
+        // up — the next pass runs as fast as the workload allows.
+        final remainingUs = deadlineUs - stopwatch.elapsedMicroseconds;
+        if (remainingUs > 0) {
+          await Future.delayed(Duration(microseconds: remainingUs));
+        } else {
+          await Future<void>.delayed(Duration.zero);
         }
       }
     } finally {
       calloc.free(pInputRecord);
       calloc.free(pEventsRead);
+      calloc.free(pEventCount);
     }
   }
 
@@ -245,13 +278,42 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
         return shiftPressed ? [0x1b, 0x5b, 0x5a] : [0x09]; // Shift+Tab or Tab
     }
 
-    // Printable characters
+    // Discard any orphaned high surrogate from a previous IME commit
+    // unless this event is its matching low surrogate. Captured into a
+    // local so the high-surrogate branch below can decide whether to
+    // re-buffer or consume.
+    final bufferedHighSurrogate = _pendingHighSurrogate;
+    _pendingHighSurrogate = null;
+
+    // Printable ASCII
     if (char >= 32 && char < 127) {
       return [char];
     }
-    // Extended characters (UTF-16)
+
+    // Non-ASCII: KEY_EVENT_RECORD.uChar holds a single UTF-16 code unit.
+    // The downstream InputParser decodes as UTF-8 (1/2/3/4-byte sequences
+    // by leading byte), so we must convert here. This is what carries
+    // IME-committed CJK / other non-ASCII characters into the framework.
     if (char > 127) {
-      return String.fromCharCode(char).codeUnits;
+      // High surrogate (0xD800-0xDBFF): the first half of a surrogate
+      // pair for a non-BMP code point. Buffer and wait for the low
+      // surrogate to arrive in the next key event.
+      if (char >= 0xD800 && char <= 0xDBFF) {
+        _pendingHighSurrogate = char;
+        return [];
+      }
+      // Low surrogate (0xDC00-0xDFFF): second half of the pair. Combine
+      // with the buffered high surrogate and emit a 4-byte UTF-8
+      // sequence for the full code point. Drop if the high half is
+      // missing (orphan).
+      if (char >= 0xDC00 && char <= 0xDFFF) {
+        if (bufferedHighSurrogate == null) return [];
+        return utf8.encode(String.fromCharCodes([bufferedHighSurrogate, char]));
+      }
+      // Single BMP code unit. Most CJK ideographs (including 你 = U+4F60,
+      // 中 = U+4E2D, 好 = U+597D) live in the BMP, so this is the hot
+      // path for typical Chinese IME input.
+      return utf8.encode(String.fromCharCode(char));
     }
 
     return [];
@@ -277,17 +339,24 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
       button = wheelDelta > 32767 ? 67 : 66;
       suffix = 'M';
     } else if (eventFlags & _mouseMoved != 0) {
-      // Motion event
+      // Motion event. Windows reports every pixel of mouse movement, including
+      // hover. The Linux path enables SGR all-motion tracking (mode 1003),
+      // which the terminal emits as button code 35 (motion flag 0x20 plus
+      // base button 3 = no button held). MouseParser.parseSGR classifies
+      // button 35 as a hover event, so emitting the same code here keeps the
+      // two backends in lock-step and lets MouseRegion/onHover work on
+      // Windows.
       if (buttonState != 0) {
-        // Motion with button down
+        // Drag: motion with one or more buttons held.
         button = 32;
         if (buttonState & _fromLeft1stButtonPressed != 0) button += 0;
         if (buttonState & _rightmostButtonPressed != 0) button += 2;
         if (buttonState & _fromLeft2ndButtonPressed != 0) button += 1;
         suffix = 'M';
       } else {
-        // Motion without button - don't report
-        return [];
+        // Hover: motion with no buttons held. SGR button 35.
+        button = 35;
+        suffix = 'M';
       }
     } else {
       // Button event
@@ -510,3 +579,12 @@ final _setConsoleMode =
 final _readConsoleInputW =
     _kernel32.lookupFunction<_ReadConsoleInputNative, _ReadConsoleInputDart>(
         'ReadConsoleInputW');
+
+typedef _GetNumberOfConsoleInputEventsNative = Int32 Function(
+    IntPtr hConsoleInput, Pointer<Uint32> lpNumberOfEvents);
+typedef _GetNumberOfConsoleInputEventsDart = int Function(
+    int hConsoleInput, Pointer<Uint32> lpNumberOfEvents);
+
+final _getNumberOfConsoleInputEvents = _kernel32.lookupFunction<
+    _GetNumberOfConsoleInputEventsNative,
+    _GetNumberOfConsoleInputEventsDart>('GetNumberOfConsoleInputEvents');
