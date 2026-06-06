@@ -14,24 +14,17 @@ class MouseTrackerAnnotation {
     required this.renderObject,
   });
 
-  /// Called when the mouse enters the annotated region.
   final MouseEventCallback? onEnter;
 
-  /// Called when the mouse exits the annotated region.
   final MouseEventCallback? onExit;
 
-  /// Called when the mouse moves within the annotated region.
   final MouseEventCallback? onHover;
 
-  /// The render object this annotation is attached to.
   final RenderObject renderObject;
 
-  /// Whether this annotation is valid for mouse tracking.
-  ///
-  /// This is set to false when the render object is detached to prevent
-  /// callbacks from being called on disposed objects during mouse event
-  /// dispatching.
   bool validForMouseTracker = true;
+
+  bool capturing = false;
 
   @override
   bool operator ==(Object other) {
@@ -61,15 +54,37 @@ class MouseTracker {
     final effectiveEvent = _eventWithButtons(event);
 
     // Collect all annotations from the hit test result
-    final Set<MouseTrackerAnnotation> newAnnotations = {};
+    final Set<MouseTrackerAnnotation> hitAnnotations = {};
     for (final entry in hitTestResult.mouseEntries) {
       if (entry.target is MouseTrackerAnnotationProvider) {
         final annotation =
             (entry.target as MouseTrackerAnnotationProvider).annotation;
         if (annotation != null) {
+          hitAnnotations.add(annotation);
+        }
+      }
+    }
+
+    // Determine if any annotation is capturing
+    final hasCapture = _hoveredAnnotations.any((a) => a.capturing) ||
+        hitAnnotations.any((a) => a.capturing);
+
+    final Set<MouseTrackerAnnotation> newAnnotations = {};
+
+    if (hasCapture) {
+      // Only capturing annotations receive events; others are blocked
+      for (final annotation in _hoveredAnnotations) {
+        if (annotation.capturing && annotation.validForMouseTracker) {
           newAnnotations.add(annotation);
         }
       }
+      for (final annotation in hitAnnotations) {
+        if (annotation.capturing && annotation.validForMouseTracker) {
+          newAnnotations.add(annotation);
+        }
+      }
+    } else {
+      newAnnotations.addAll(hitAnnotations);
     }
 
     // Find annotations that were exited

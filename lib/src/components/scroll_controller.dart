@@ -232,6 +232,14 @@ class ScrollController extends ChangeNotifier {
       itemExtent: itemExtent,
     );
   }
+
+  /// Returns the offset and extent of the item at the given index, or null if
+  /// the item is not laid out or no ListView is attached.
+  (double, double)? getItemIndexOffsetAndExtent(int index) {
+    final renderViewport = _attachedRenderObject;
+    if (renderViewport is! RenderListViewport) return null;
+    return renderViewport.getItemOffsetAndExtent(index);
+  }
 }
 
 /// Base class for change notification.

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
+import 'package:nocterm/src/rendering/mouse_hit_test.dart';
+import 'package:nocterm/src/rendering/mouse_tracker.dart';
 
 /// A scrollbar that can be optionally shown for scrollable widgets.
 ///
@@ -129,7 +131,8 @@ class _ScrollbarRenderObjectWidget extends SingleChildRenderObjectComponent {
 
 /// Render object for a scrollbar.
 class RenderScrollbar extends RenderObject
-    with RenderObjectWithChildMixin<RenderObject> {
+    with RenderObjectWithChildMixin<RenderObject>
+    implements MouseTrackerAnnotationProvider {
   RenderScrollbar({
     ScrollController? controller,
     required bool thumbVisibility,
@@ -142,6 +145,170 @@ class RenderScrollbar extends RenderObject
         _trackColor = trackColor,
         _thumbColor = thumbColor {
     _controller?.addListener(_handleScrollUpdate);
+  }
+
+  @override
+  MouseTrackerAnnotation? get annotation => _annotation;
+  MouseTrackerAnnotation? _annotation;
+
+  bool _isLeftButtonPressed = false;
+  bool _isDragging = false;
+  bool _isHovered = false;
+  double _dragStartLocalY = 0;
+  double _dragStartOffset = 0;
+
+  void _setDragging(bool value) {
+    if (_isDragging == value) return;
+    _isDragging = value;
+    _annotation?.capturing = value;
+  }
+
+  Offset _paintOffset = Offset.zero;
+
+  (double, double, double, double) _getTrackGeometry() {
+    final scrollbarHeight = size.height;
+    final hasArrows = scrollbarHeight >= 3;
+    final trackStart = hasArrows ? 1.0 : 0.0;
+    final trackEnd = hasArrows ? scrollbarHeight - 1 : scrollbarHeight;
+    final trackHeight = trackEnd - trackStart;
+    final scrollFraction = _controller!.viewportDimension /
+        (_controller!.maxScrollExtent + _controller!.viewportDimension);
+    final thumbHeight = math.max(1.0, trackHeight * scrollFraction);
+    double thumbOffset;
+    if (_isReversed) {
+      final scrollOffset = 1.0 - (_controller!.offset / _controller!.maxScrollExtent);
+      thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
+    } else {
+      final scrollOffset = _controller!.offset / _controller!.maxScrollExtent;
+      thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
+    }
+    return (trackStart, trackEnd, thumbHeight, thumbOffset);
+  }
+
+  bool _isOnThumb(double localY) {
+    if (_controller == null || !thumbVisibility) return false;
+    if (_controller!.maxScrollExtent <= 0) return false;
+    final (trackStart, _, thumbHeight, thumbOffset) = _getTrackGeometry();
+    return localY >= thumbOffset && localY < thumbOffset + thumbHeight;
+  }
+
+  void _updateAnnotation() {
+    _annotation = MouseTrackerAnnotation(
+      onEnter: (event) {
+        _isHovered = true;
+        markNeedsPaint();
+        if (_isDragging) {
+          _handleDragMove(event);
+        }
+      },
+      onExit: (event) {
+        _isHovered = false;
+        markNeedsPaint();
+        if (_isDragging && !(event.pressed || event.isPrimaryButtonDown)) {
+          _setDragging(false);
+          _isLeftButtonPressed = false;
+        }
+      },
+      onHover: (event) {
+        if (_controller == null || !thumbVisibility) return;
+        if (event.button == MouseButton.left || event.isPrimaryButtonDown) {
+          final leftDown = event.pressed || event.isPrimaryButtonDown;
+          if (leftDown && !_isLeftButtonPressed) {
+            _isLeftButtonPressed = true;
+            _handleMouseDown(event);
+          } else if (leftDown && _isDragging) {
+            _handleDragMove(event);
+          } else if (!leftDown && _isLeftButtonPressed) {
+            _isLeftButtonPressed = false;
+            _setDragging(false);
+          }
+        }
+      },
+      renderObject: this,
+    );
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _updateAnnotation();
+  }
+
+  @override
+  void detach() {
+    _annotation?.validForMouseTracker = false;
+    super.detach();
+  }
+
+  void _handleMouseDown(MouseEvent event) {
+    if (_controller == null || !thumbVisibility) return;
+    if (size.height < 3) return;
+    if (_controller!.maxScrollExtent <= 0) return;
+
+    final localX = event.x.toDouble() - _paintOffset.dx;
+    final localY = event.y.toDouble() - _paintOffset.dy;
+    final scrollbarX = size.width - thickness;
+
+    if (localX < scrollbarX) return;
+
+    final (trackStart, trackEnd, _, thumbOffset) = _getTrackGeometry();
+
+    if (localY < trackStart) {
+      _isReversed ? _controller!.pageDown() : _controller!.pageUp();
+    } else if (localY >= trackEnd) {
+      _isReversed ? _controller!.pageUp() : _controller!.pageDown();
+    } else if (_isOnThumb(localY)) {
+      _setDragging(true);
+      _dragStartLocalY = localY;
+      _dragStartOffset = _controller!.offset;
+    } else {
+      _scrollToTrackPosition(localY);
+    }
+  }
+
+  void _handleDragMove(MouseEvent event) {
+    if (!_isDragging || _controller == null) return;
+
+    final localY = event.y.toDouble() - _paintOffset.dy;
+    final deltaY = localY - _dragStartLocalY;
+
+    final (_, _, thumbHeight, _) = _getTrackGeometry();
+    final scrollbarHeight = size.height;
+    final hasArrows = scrollbarHeight >= 3;
+    final trackStart = hasArrows ? 1.0 : 0.0;
+    final trackEnd = hasArrows ? scrollbarHeight - 1 : scrollbarHeight;
+    final trackHeight = trackEnd - trackStart;
+
+    if (trackHeight <= thumbHeight) return;
+
+    final scrollableTrack = trackHeight - thumbHeight;
+    final deltaFraction = deltaY / scrollableTrack;
+    final deltaOffset = deltaFraction * _controller!.maxScrollExtent;
+    final newOffset = (_dragStartOffset + deltaOffset).clamp(
+      _controller!.minScrollExtent,
+      _controller!.maxScrollExtent,
+    );
+    _controller!.jumpTo(newOffset);
+  }
+
+  void _scrollToTrackPosition(double localY) {
+    if (_controller == null || _controller!.maxScrollExtent <= 0) return;
+
+    final (_, _, thumbHeight, _) = _getTrackGeometry();
+    final scrollbarHeight = size.height;
+    final hasArrows = scrollbarHeight >= 3;
+    final trackStart = hasArrows ? 1.0 : 0.0;
+    final trackEnd = hasArrows ? scrollbarHeight - 1 : scrollbarHeight;
+    final trackHeight = trackEnd - trackStart;
+
+    if (trackHeight <= thumbHeight) return;
+
+    final scrollableTrack = trackHeight - thumbHeight;
+    final fraction = ((localY - trackStart) / scrollableTrack).clamp(0.0, 1.0);
+    final targetOffset = _isReversed
+        ? _controller!.maxScrollExtent * (1.0 - fraction)
+        : _controller!.maxScrollExtent * fraction;
+    _controller!.jumpTo(targetOffset);
   }
 
   ScrollController? _controller;
@@ -206,8 +373,19 @@ class RenderScrollbar extends RenderObject
 
   @override
   bool hitTestSelf(Offset position) {
-    // Hit test if position is on the scrollbar area
+    if (_isDragging) return true;
     return position.dx >= size.width - thickness;
+  }
+
+  @override
+  bool hitTest(HitTestResult result, {required Offset position}) {
+    final isHit = super.hitTest(result, position: position);
+    if (isHit && annotation != null && result is MouseHitTestResult) {
+      if (_isDragging || position.dx >= size.width - thickness) {
+        result.addWithPosition(target: this, localPosition: position);
+      }
+    }
+    return isHit;
   }
 
   @override
@@ -236,6 +414,7 @@ class RenderScrollbar extends RenderObject
 
   @override
   void paint(TerminalCanvas canvas, Offset offset) {
+    _paintOffset = offset;
     super.paint(canvas, offset);
     if (child == null) return;
 
@@ -251,73 +430,71 @@ class RenderScrollbar extends RenderObject
   void _paintScrollbar(TerminalCanvas canvas, Offset offset) {
     final controller = _controller!;
 
-    // Don't show scrollbar if there's nothing to scroll
     if (controller.maxScrollExtent <= 0) return;
 
     final scrollbarX = size.width - thickness;
     final scrollbarHeight = size.height;
 
-    // When arrows are shown, the thumb track is between the arrows
     final hasArrows = scrollbarHeight >= 3;
     final trackStart = hasArrows ? 1.0 : 0.0;
     final trackEnd = hasArrows ? scrollbarHeight - 1 : scrollbarHeight;
     final trackHeight = trackEnd - trackStart;
 
-    // Calculate thumb size and position within the track area
     final scrollFraction = controller.viewportDimension /
         (controller.maxScrollExtent + controller.viewportDimension);
     final thumbHeight = math.max(1.0, trackHeight * scrollFraction);
 
-    // Calculate thumb position based on scroll offset
     double thumbOffset;
     if (_isReversed) {
-      // In reverse mode, invert the thumb position
-      // When at offset 0 (visual bottom), thumb should be at bottom
-      // When at maxScrollExtent (visual top), thumb should be at top
-      final scrollOffset =
-          1.0 - (controller.offset / controller.maxScrollExtent);
+      final scrollOffset = 1.0 - (controller.offset / controller.maxScrollExtent);
       thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
     } else {
-      // Normal mode: offset 0 = top, maxScrollExtent = bottom
       final scrollOffset = controller.offset / controller.maxScrollExtent;
       thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
     }
 
-    // Draw scrollbar track
+    final idleTrackColor = _dimColor(_trackColor, 0.2);
+    final idleThumbColor = _dimColor(_thumbColor, 0.3);
+    final hoverThumbColor = _dimColor(_thumbColor, 0.7);
+    final dragThumbColor = _thumbColor;
+
+    final activeThumbColor = _isDragging
+        ? dragThumbColor
+        : _isHovered
+            ? hoverThumbColor
+            : idleThumbColor;
+
+    final activeTrackColor = _isHovered || _isDragging
+        ? _dimColor(_trackColor, 0.4)
+        : idleTrackColor;
+
     for (int y = 0; y < scrollbarHeight.toInt(); y++) {
       canvas.drawText(
         offset + Offset(scrollbarX, y.toDouble()),
         '│',
-        style: TextStyle(color: _trackColor),
+        style: TextStyle(color: activeTrackColor),
       );
     }
 
-    // Draw arrows at top and bottom
     if (hasArrows) {
-      // In reverse mode, arrows should reflect the inverted scroll direction
-      final topArrowActive =
-          _isReversed ? !controller.atEnd : !controller.atStart;
-      final bottomArrowActive =
-          _isReversed ? !controller.atStart : !controller.atEnd;
+      final topArrowActive = _isReversed ? !controller.atEnd : !controller.atStart;
+      final bottomArrowActive = _isReversed ? !controller.atStart : !controller.atEnd;
+
+      final arrowColor = _isHovered || _isDragging ? hoverThumbColor : idleThumbColor;
 
       canvas.drawText(
         offset + Offset(scrollbarX, 0),
-        '▲',
-        style: TextStyle(
-          color: topArrowActive ? _thumbColor : _trackColor,
-        ),
+        topArrowActive ? '▲' : '│',
+        style: TextStyle(color: topArrowActive ? arrowColor : activeTrackColor),
       );
 
       canvas.drawText(
         offset + Offset(scrollbarX, scrollbarHeight - 1),
-        '▼',
-        style: TextStyle(
-          color: bottomArrowActive ? _thumbColor : _trackColor,
-        ),
+        bottomArrowActive ? '▼' : '│',
+        style: TextStyle(color: bottomArrowActive ? arrowColor : activeTrackColor),
       );
     }
 
-    // Draw scrollbar thumb (constrained to track area between arrows)
     final thumbStart = thumbOffset.toInt();
     final thumbEnd = math.min(
       (thumbOffset + thumbHeight).toInt(),
@@ -328,18 +505,26 @@ class RenderScrollbar extends RenderObject
       canvas.drawText(
         offset + Offset(scrollbarX, y.toDouble()),
         '█',
-        style: TextStyle(color: _thumbColor),
+        style: TextStyle(color: activeThumbColor),
       );
     }
+  }
+
+  Color _dimColor(Color color, double factor) {
+    return Color.fromARGB(
+      (color.alpha * factor).round().clamp(0, 255),
+      color.red,
+      color.green,
+      color.blue,
+    );
   }
 
   @override
   bool hitTestChildren(HitTestResult result, {required Offset position}) {
     if (child == null) return false;
+    if (_isDragging) return false;
 
-    // Check if the position is in the scrollbar area
     if (position.dx >= size.width - thickness) {
-      // Click is on scrollbar, don't pass to child
       return false;
     }
 
