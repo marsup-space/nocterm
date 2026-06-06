@@ -2,7 +2,7 @@ import 'package:nocterm/nocterm.dart' hide TextAlign;
 import 'render_paragraph.dart';
 
 // Re-export text related enums and classes
-export 'render_paragraph.dart' show TextOverflow, TextAlign;
+export 'render_paragraph.dart' show TextOverflow, TextAlign, RenderParagraph;
 export 'package:nocterm/src/painting/inline_span.dart';
 export 'package:nocterm/src/painting/text_span.dart';
 

@@ -86,28 +86,6 @@ class UnicodeWidth {
       return 0;
     }
 
-    // General Punctuation (0x2010-0x205F). Most characters here are
-    // East Asian Ambiguous (A) — em dash, smart quotes, ellipsis,
-    // primes, single angle quotes, reversed question/exclamation
-    // marks, etc. — and the bundled wcwidth table returns 1 for
-    // Ambiguous. CJK text renders them as full-width, so we treat
-    // the whole block as wide here, except for commonly single-width
-    // punctuation like bullet (U+2022) and horizontal ellipsis (U+2026).
-    // Nerd Font and Powerline icons live in the Private Use Area and
-    // render as 2-column wide glyphs in terminal fonts that support them.
-    // BMP PUA: U+E000–U+F8FF, Supplementary PUA-A: U+F0000–U+FFFFF.
-    if ((rune >= 0xE000 && rune <= 0xF8FF) ||
-        (rune >= 0xF0000 && rune <= 0xFFFFF)) {
-      return 2;
-    }
-
-    if (rune == 0x2022 || rune == 0x2026) {
-      return 1;
-    }
-    if (rune >= 0x2010 && rune <= 0x205F) {
-      return 2;
-    }
-
     // Delegate to the Unicode 11 East Asian Width property table
     // (bundled with the xterm_pure dependency). One lookup covers
     // every CJK ideograph range, kana, hangul, fullwidth/halfwidth
