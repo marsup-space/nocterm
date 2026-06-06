@@ -91,7 +91,11 @@ class UnicodeWidth {
     // primes, single angle quotes, reversed question/exclamation
     // marks, etc. — and the bundled wcwidth table returns 1 for
     // Ambiguous. CJK text renders them as full-width, so we treat
-    // the whole block as wide here.
+    // the whole block as wide here, except for commonly single-width
+    // punctuation like bullet (U+2022) and horizontal ellipsis (U+2026).
+    if (rune == 0x2022 || rune == 0x2026) {
+      return 1;
+    }
     if (rune >= 0x2010 && rune <= 0x205F) {
       return 2;
     }
