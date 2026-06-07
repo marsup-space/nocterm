@@ -21,6 +21,7 @@ class StdioBackend implements TerminalBackend {
   Timer? _windowsResizeTimer;
   Size? _lastKnownSize;
   bool _disposed = false;
+  bool _icrnlWasDisabled = false;
   Win32AnsiStdin? _win32Stdin;
 
   StdioBackend() {
@@ -139,6 +140,20 @@ class StdioBackend implements TerminalBackend {
         stdin.echoMode = false;
         stdin.lineMode = false;
       }
+      // Disable icrnl so the terminal passes CR (0x0D) through
+      // verbatim instead of translating it to LF (0x0A). This
+      // lets us distinguish Enter (0x0D) from Ctrl+J (0x0A), which
+      // is essential for "Enter sends, Ctrl+J inserts newline" in
+      // terminals that don't support the kitty keyboard protocol.
+      // Must target /dev/tty explicitly because Process.runSync
+      // pipes the child's stdin, so bare "stty -icrnl" would try
+      // to set attributes on the pipe (which isn't a terminal).
+      if (!Platform.isWindows) {
+        final result = Process.runSync('stty', ['-icrnl', '-F', '/dev/tty']);
+        if (result.exitCode == 0) {
+          _icrnlWasDisabled = true;
+        }
+      }
     } catch (e) {
       // Ignore errors in CI/CD or when piping
     }
@@ -150,6 +165,10 @@ class StdioBackend implements TerminalBackend {
       if (stdin.hasTerminal) {
         stdin.echoMode = true;
         stdin.lineMode = true;
+      }
+      if (_icrnlWasDisabled && !Platform.isWindows) {
+        Process.runSync('stty', ['icrnl', '-F', '/dev/tty']);
+        _icrnlWasDisabled = false;
       }
     } catch (e) {
       // Ignore errors

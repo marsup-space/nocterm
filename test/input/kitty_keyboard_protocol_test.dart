@@ -448,13 +448,16 @@ void main() {
       expect(event.modifiers.ctrl, isTrue);
     });
 
-    test('0x0A (LF) is parsed as Enter for terminal compatibility', () {
+    test('0x0A (LF) is parsed as Ctrl+J (not Enter) when icrnl is disabled', () {
       parser.clear();
       final event = parser.parseBytes([0x0A]);
-      expect(event!.logicalKey, equals(LogicalKey.enter));
-      expect(event.modifiers.hasAnyModifier, isFalse);
-      // Some terminals (e.g. Warp) send 0x0A for Enter.
-      // With kitty protocol active, Ctrl+J arrives as \x1b[106;5u instead.
+      expect(event, isNotNull);
+      expect(event!.logicalKey, equals(LogicalKey.keyJ));
+      expect(event.modifiers.ctrl, isTrue);
+      // With icrnl disabled (which we do in raw mode), 0x0A is Ctrl+J,
+      // not Enter. Enter sends 0x0D (CR). This distinction is what
+      // allows Ctrl+J to work as a newline shortcut even in terminals
+      // that don't support the kitty keyboard protocol.
     });
 
     test('F5 (ESC[15~) still works and is not confused with modifyOtherKeys',

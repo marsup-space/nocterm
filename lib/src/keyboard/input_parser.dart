@@ -158,13 +158,12 @@ class InputParser {
       );
     }
 
-    // Enter/Return - 0x0D (CR) and 0x0A (LF).
-    // In raw mode most terminals send 0x0D for Enter, but some (e.g. Warp)
-    // may send 0x0A. We treat both as Enter for compatibility.
-    // When kitty keyboard protocol is active, Ctrl+J arrives as a kitty
-    // CSI sequence (\x1b[106;5u), not as raw 0x0A, so this doesn't
-    // interfere with Ctrl+J newline detection in kitty-capable terminals.
-    if (first == 0x0D || first == 0x0A) {
+    // Enter/Return - 0x0D (CR).
+    // We disable icrnl in raw mode so CR passes through verbatim
+    // instead of being translated to LF (0x0A). This lets us
+    // distinguish Enter (0x0D) from Ctrl+J (0x0A, which falls
+    // through to _parseControlChar as keyJ+ctrl).
+    if (first == 0x0D) {
       return (
         KeyboardEvent(
           logicalKey: LogicalKey.enter,
@@ -199,7 +198,9 @@ class InputParser {
     }
 
     // Control characters (Ctrl+A through Ctrl+Z)
-    // Note: 0x08 (Ctrl+H), 0x09 (Ctrl+I/Tab), 0x0A (Ctrl+J), 0x0D (Ctrl+M/Enter) are handled above
+    // Note: 0x08 (Ctrl+H), 0x09 (Ctrl+I/Tab), 0x0D (Ctrl+M/Enter) are handled above.
+    // 0x0A (Ctrl+J) falls through to here — it is NOT mapped to Enter because
+    // we disable icrnl, so Ctrl+J and Enter are distinguishable.
     if (first >= 0x01 && first <= 0x1A) {
       final event = _parseControlChar(first);
       if (event != null) {

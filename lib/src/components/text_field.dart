@@ -396,9 +396,10 @@ class _TextFieldState extends State<TextField> {
 
     final isEnter = key == LogicalKey.enter || key == LogicalKey.numpadEnter;
 
-    // Handle newline insertion: Shift+Enter, Ctrl+Enter, Alt+Enter, or Ctrl+J
-    // With kitty keyboard protocol enabled, terminals can distinguish modified Enter.
-    // Ctrl+J (linefeed) is a universal fallback that works in all terminals.
+    // Handle newline insertion: Shift+Enter, Ctrl+Enter, Alt+Enter, or Ctrl+J.
+    // Modified-Enter works in kitty-capable terminals. Ctrl+J (0x0A) is a
+    // universal fallback — we disable icrnl in raw mode so it's distinct
+    // from Enter (0x0D).
     if (isEnter &&
         (event.isShiftPressed ||
             event.isControlPressed ||
@@ -408,7 +409,6 @@ class _TextFieldState extends State<TextField> {
       }
       return true;
     } else if (event.matches(LogicalKey.keyJ, ctrl: true)) {
-      // Ctrl+J = universal newline fallback (works in all terminals)
       if (component.maxLines != 1) {
         _insertText('\n');
       }
