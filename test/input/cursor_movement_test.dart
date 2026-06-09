@@ -162,5 +162,88 @@ void main() {
       );
       expect(offset, 29); // End of second line
     });
+
+    test('handles multiple consecutive newlines in cursor position', () {
+      // "hello\n\nworld" has two newlines: one between "hello" and "",
+      // another between "" and "world"
+      final text = 'hello\n\nworld';
+      final layoutResult = TextLayoutEngine.layout(
+        text,
+        TextLayoutConfig(
+          softWrap: false,
+          maxWidth: 100,
+        ),
+      );
+
+      // Layout produces: ["hello", "", "world"]
+      expect(layoutResult.lines.length, 3);
+      expect(layoutResult.lines[0], 'hello');
+      expect(layoutResult.lines[1], '');
+      expect(layoutResult.lines[2], 'world');
+
+      // Cursor at start of the empty line (offset 6, after first \n)
+      final posEmptyLine = CursorMovement.getCursorPosition(
+        layoutResult: layoutResult,
+        text: text,
+        cursorOffset: 6,
+      );
+      expect(posEmptyLine.line, 1); // Empty line
+      expect(posEmptyLine.column, 0);
+      expect(posEmptyLine.visualColumn, 0);
+
+      // Cursor at start of "world" (offset 7, after second \n)
+      final posWorldStart = CursorMovement.getCursorPosition(
+        layoutResult: layoutResult,
+        text: text,
+        cursorOffset: 7,
+      );
+      expect(posWorldStart.line, 2); // "world" line
+      expect(posWorldStart.column, 0);
+      expect(posWorldStart.visualColumn, 0);
+
+      // Cursor at the 'r' in "world" (offset 8)
+      final posR = CursorMovement.getCursorPosition(
+        layoutResult: layoutResult,
+        text: text,
+        cursorOffset: 8,
+      );
+      expect(posR.line, 2);
+      expect(posR.column, 1);
+      expect(posR.visualColumn, 1);
+    });
+
+    test('handles vertical movement across multiple consecutive newlines', () {
+      final text = 'hello\n\nworld';
+      final layoutResult = TextLayoutEngine.layout(
+        text,
+        TextLayoutConfig(
+          softWrap: false,
+          maxWidth: 100,
+        ),
+      );
+
+      // Start at offset 2 (the 'l' in "hello"), move down
+      // Should land on the empty line (line 1)
+      var offset = CursorMovement.moveCursorVertically(
+        layoutResult: layoutResult,
+        text: text,
+        currentOffset: 2,
+        direction: 1, // Move down
+        targetVisualColumn: 2,
+      );
+      // Empty line has column 0 only, so cursor should be at offset 6 (start of empty line)
+      expect(offset, 6);
+
+      // Move down again from the empty line to "world"
+      offset = CursorMovement.moveCursorVertically(
+        layoutResult: layoutResult,
+        text: text,
+        currentOffset: 6,
+        direction: 1, // Move down
+        targetVisualColumn: 0,
+      );
+      // Should be at offset 7 (start of "world")
+      expect(offset, 7);
+    });
   });
 }
