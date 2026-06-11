@@ -6,6 +6,17 @@ import 'package:nocterm/src/size.dart';
 import 'terminal_backend.dart';
 import 'win32_ansi_stdin.dart';
 
+List<String> sttyIcrnlArguments({
+  required bool enabled,
+  required bool isLinux,
+}) {
+  return [
+    isLinux ? '-F' : '-f',
+    '/dev/tty',
+    enabled ? 'icrnl' : '-icrnl',
+  ];
+}
+
 /// Backend for native terminal I/O via stdin/stdout.
 /// Handles Unix signals (SIGWINCH, SIGINT, SIGTERM) for resize and shutdown.
 /// On Windows, uses polling for resize detection, SIGINT for Ctrl+C,
@@ -149,7 +160,10 @@ class StdioBackend implements TerminalBackend {
       // pipes the child's stdin, so bare "stty -icrnl" would try
       // to set attributes on the pipe (which isn't a terminal).
       if (!Platform.isWindows) {
-        final result = Process.runSync('stty', ['-icrnl', '-F', '/dev/tty']);
+        final result = Process.runSync(
+          'stty',
+          sttyIcrnlArguments(enabled: false, isLinux: Platform.isLinux),
+        );
         if (result.exitCode == 0) {
           _icrnlWasDisabled = true;
         }
@@ -167,7 +181,10 @@ class StdioBackend implements TerminalBackend {
         stdin.lineMode = true;
       }
       if (_icrnlWasDisabled && !Platform.isWindows) {
-        Process.runSync('stty', ['icrnl', '-F', '/dev/tty']);
+        Process.runSync(
+          'stty',
+          sttyIcrnlArguments(enabled: true, isLinux: Platform.isLinux),
+        );
         _icrnlWasDisabled = false;
       }
     } catch (e) {
