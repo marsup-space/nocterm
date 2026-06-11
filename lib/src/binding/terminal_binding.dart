@@ -1215,7 +1215,13 @@ class TerminalBinding extends NoctermBinding
     // Render pending sixel images
     _renderPendingImages(buffer);
 
-    terminal.flush();
+    // Intentionally do NOT flush here. The outer _drawFrameCallback flushes
+    // once after _positionImeCursor() appends the IME cursor position bytes.
+    // Flushing here would split the frame into two pipe writes, leaving the
+    // terminal cursor on the last streaming cell for one paint cycle. On
+    // Windows Terminal (and other terminals whose IME composition window
+    // follows the cursor position in real time), that caused the IME
+    // composition window to flicker across the screen during chat streaming.
   }
 
   /// Full redraw (used for first frame or after resize).
@@ -1284,7 +1290,9 @@ class TerminalBinding extends NoctermBinding
     // Render pending sixel images
     _renderPendingImages(buffer);
 
-    terminal.flush();
+    // Intentionally do NOT flush here. See _renderFullDiff for the full
+    // rationale; the same split-frame issue applies here on the
+    // first-frame / post-resize path.
   }
 
   // Detailed timing instrumentation for profiling
