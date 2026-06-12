@@ -165,6 +165,16 @@ class RenderScrollbar extends RenderObject
 
   Offset _paintOffset = Offset.zero;
 
+  /// The minimum thumb height, capped by the available track height.
+  double get minimumThumbHeight => 1.0;
+
+  double _getThumbHeight(double trackHeight, double scrollFraction) {
+    return math.min(
+      trackHeight,
+      math.max(minimumThumbHeight, trackHeight * scrollFraction),
+    );
+  }
+
   (double, double, double, double) _getTrackGeometry() {
     final scrollbarHeight = size.height;
     final hasArrows = scrollbarHeight >= 3;
@@ -173,7 +183,7 @@ class RenderScrollbar extends RenderObject
     final trackHeight = trackEnd - trackStart;
     final scrollFraction = _controller!.viewportDimension /
         (_controller!.maxScrollExtent + _controller!.viewportDimension);
-    final thumbHeight = math.max(1.0, trackHeight * scrollFraction);
+    final thumbHeight = _getThumbHeight(trackHeight, scrollFraction);
     double thumbOffset;
     if (_isReversed) {
       final scrollOffset = 1.0 - (_controller!.offset / _controller!.maxScrollExtent);
@@ -442,7 +452,7 @@ class RenderScrollbar extends RenderObject
 
     final scrollFraction = controller.viewportDimension /
         (controller.maxScrollExtent + controller.viewportDimension);
-    final thumbHeight = math.max(1.0, trackHeight * scrollFraction);
+    final thumbHeight = _getThumbHeight(trackHeight, scrollFraction);
 
     double thumbOffset;
     if (_isReversed) {
