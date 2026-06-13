@@ -1,5 +1,4 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm/nocterm_test.dart';
 import 'package:test/test.dart';
 
 int _defaultPreviousBoundary(String text, int offset) {
