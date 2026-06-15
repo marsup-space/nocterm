@@ -160,26 +160,6 @@ void main() {
         '〟': 0x301F, // Low kana double prime
         '〰': 0x3030, // Wavy dash
 
-        // General Punctuation, CJK-relevant sub-range (U+2010-0x205F).
-        // Treated as wide to match CJK font fallback behaviour.
-        '—': 0x2014, // Em dash
-        '‛': 0x201B, // Single high-reversed-9 quotation
-        '′': 0x2032, // Prime
-        '″': 0x2033, // Double prime
-        '‹': 0x2039, // Single left-pointing angle quotation
-        '›': 0x203A, // Single right-pointing angle quotation
-        '※': 0x203B, // Reference mark
-        '‼': 0x203C, // Double exclamation mark
-        '‽': 0x203D, // Interrobang
-        '⁇': 0x2047, // Double question reversal
-        '⁈': 0x2048, // Question exclamation mark
-        '⁉': 0x2049, // Exclamation question mark
-        '…': 0x2026, // Horizontal ellipsis
-        '“': 0x201C, // Left double quotation mark
-        '”': 0x201D, // Right double quotation mark
-        '‘': 0x2018, // Left single quotation mark
-        '’': 0x2019, // Right single quotation mark
-
         // Small Form Variants (U+FE50-0xFE6F).
         '﹏': 0xFE4F, // Bottom of box (sits at top of Small Form Variants)
         '﹑': 0xFE51, // Small ideographic comma
@@ -313,6 +293,32 @@ void main() {
 
       expect(offset1, equals(offset2));
       expect(offset1, equals(16)); // (45 - 12) / 2 = 16.5 -> 16
+    });
+
+    test('East Asian Ambiguous punctuation stays single-width', () {
+      // General Punctuation (0x2010-0x205F) is East Asian Ambiguous.
+      // It must resolve to width 1, matching the default of virtually
+      // every terminal. Treating these as full-width misaligns ordinary
+      // Latin text (lists, centered headings, padded tables, borders).
+      final ambiguous = {
+        '–': 0x2013, // en dash
+        '—': 0x2014, // em dash
+        '‘': 0x2018, // left single quote
+        '’': 0x2019, // right single quote
+        '“': 0x201C, // left double quote
+        '”': 0x201D, // right double quote
+        '•': 0x2022, // bullet
+        '…': 0x2026, // horizontal ellipsis
+        '′': 0x2032, // prime
+      };
+      ambiguous.forEach((char, code) {
+        expect(char.runes.first, equals(code),
+            reason:
+                '$char should be U+${code.toRadixString(16).toUpperCase()}');
+        expect(UnicodeWidth.runeWidth(code), equals(1),
+            reason: '$char (U+${code.toRadixString(16).toUpperCase()}) '
+                'should be single-width');
+      });
     });
   });
 }

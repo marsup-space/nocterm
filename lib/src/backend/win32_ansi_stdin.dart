@@ -60,7 +60,21 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
   void startEventLoop() {
     if (_running) return;
     _running = true;
+    // Dart's stdin.lineMode = false clears ENABLE_PROCESSED_INPUT, which is
+    // what makes Windows generate SIGINT for Ctrl+C.
+    _ensureProcessedInput();
     _eventLoop();
+  }
+
+  void _ensureProcessedInput() {
+    final modePtr = calloc<Uint32>();
+    try {
+      if (_getConsoleMode(_inputHandle, modePtr) != 0) {
+        _setConsoleMode(_inputHandle, modePtr.value | _enableProcessedInput);
+      }
+    } finally {
+      calloc.free(modePtr);
+    }
   }
 
   Future<void> _eventLoop() async {
@@ -537,6 +551,7 @@ class Win32AnsiStdin extends Stream<List<int>> implements Stdin {
 
 // Windows API Constants
 const int _stdInputHandle = -10;
+const int _enableProcessedInput = 0x0001;
 const int _enableMouseInput = 0x0010;
 const int _enableExtendedFlags = 0x0080;
 const int _enableQuickEditMode = 0x0040;
