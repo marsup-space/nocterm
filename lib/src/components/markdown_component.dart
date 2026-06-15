@@ -314,6 +314,7 @@ class MDownRenderer {
 
   static Future<void> _ensureInitialized() {
     return _initFuture ??= tm.Highlighter.initialize([
+      // Original
       'dart',
       'python',
       'javascript',
@@ -328,6 +329,26 @@ class MDownRenderer {
       'json',
       'yaml',
       'sql',
+      // Added
+      'csharp',
+      'c',
+      'cpp',
+      'ruby',
+      'php',
+      'bash',
+      'toml',
+      'diff',
+      'dockerfile',
+      'lua',
+      'scala',
+      'haskell',
+      'markdown',
+      'xml',
+      'perl',
+      'r',
+      'elixir',
+      'erlang',
+      'clojure',
     ]);
   }
 
