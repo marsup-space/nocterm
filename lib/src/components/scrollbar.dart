@@ -186,7 +186,8 @@ class RenderScrollbar extends RenderObject
     final thumbHeight = _getThumbHeight(trackHeight, scrollFraction);
     double thumbOffset;
     if (_isReversed) {
-      final scrollOffset = 1.0 - (_controller!.offset / _controller!.maxScrollExtent);
+      final scrollOffset =
+          1.0 - (_controller!.offset / _controller!.maxScrollExtent);
       thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
     } else {
       final scrollOffset = _controller!.offset / _controller!.maxScrollExtent;
@@ -413,7 +414,7 @@ class RenderScrollbar extends RenderObject
       maxHeight: constraints.maxHeight,
     );
 
-    child!.layout(childConstraints, parentUsesSize: true);
+    child!.layout(childConstraints, parentUsesSize: !constraints.isTight);
 
     // Our size includes the scrollbar
     size = constraints.constrain(Size(
@@ -456,7 +457,8 @@ class RenderScrollbar extends RenderObject
 
     double thumbOffset;
     if (_isReversed) {
-      final scrollOffset = 1.0 - (controller.offset / controller.maxScrollExtent);
+      final scrollOffset =
+          1.0 - (controller.offset / controller.maxScrollExtent);
       thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
     } else {
       final scrollOffset = controller.offset / controller.maxScrollExtent;
@@ -487,10 +489,13 @@ class RenderScrollbar extends RenderObject
     }
 
     if (hasArrows) {
-      final topArrowActive = _isReversed ? !controller.atEnd : !controller.atStart;
-      final bottomArrowActive = _isReversed ? !controller.atStart : !controller.atEnd;
+      final topArrowActive =
+          _isReversed ? !controller.atEnd : !controller.atStart;
+      final bottomArrowActive =
+          _isReversed ? !controller.atStart : !controller.atEnd;
 
-      final arrowColor = _isHovered || _isDragging ? hoverThumbColor : idleThumbColor;
+      final arrowColor =
+          _isHovered || _isDragging ? hoverThumbColor : idleThumbColor;
 
       canvas.drawText(
         offset + Offset(scrollbarX, 0),
@@ -501,7 +506,8 @@ class RenderScrollbar extends RenderObject
       canvas.drawText(
         offset + Offset(scrollbarX, scrollbarHeight - 1),
         bottomArrowActive ? '▼' : '│',
-        style: TextStyle(color: bottomArrowActive ? arrowColor : activeTrackColor),
+        style:
+            TextStyle(color: bottomArrowActive ? arrowColor : activeTrackColor),
       );
     }
 
