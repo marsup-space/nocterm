@@ -63,6 +63,7 @@ export 'src/components/value_listenable_builder.dart';
 
 // Mouse and Gesture Support
 export 'src/components/mouse_region.dart';
+export 'src/components/hint.dart';
 export 'src/components/gesture_detector.dart';
 export 'src/gestures/events.dart';
 export 'src/gestures/hit_test.dart';
