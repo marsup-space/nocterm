@@ -641,6 +641,7 @@ class TerminalBinding extends NoctermBinding
     // Prevent multiple shutdowns
     if (_shouldExit) return;
     _shouldExit = true;
+    scheduler.cancelAll();
 
     // Cancel all subscriptions immediately
     pendingFrameTimer?.cancel();
@@ -1003,6 +1004,7 @@ class TerminalBinding extends NoctermBinding
     if (_shouldExit) return;
 
     _shouldExit = true;
+    scheduler.cancelAll();
     _inputSubscription?.cancel();
     _resizeSubscription?.cancel();
     _resumeSubscription?.cancel();

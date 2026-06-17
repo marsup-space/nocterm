@@ -42,6 +42,12 @@ class _GestureDemoAppState extends State<GestureDemoApp> {
   bool _isCombinedHovering = false;
   String _combinedGestureState = 'Idle';
 
+  @override
+  void dispose() {
+    SchedulerBinding.instance.scheduler.cancelOwner(this);
+    super.dispose();
+  }
+
   void _addEvent(String event) {
     _log(event);
     setState(() {
@@ -325,42 +331,57 @@ class _GestureDemoAppState extends State<GestureDemoApp> {
             _combinedGestureState = 'Tapped!';
           });
           // Reset state after a brief moment
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              setState(() {
-                _combinedGestureState =
-                    _isCombinedHovering ? 'Hovering' : 'Idle';
-              });
-            }
-          });
+          SchedulerBinding.instance.scheduler.once(
+            (_) {
+              if (mounted) {
+                setState(() {
+                  _combinedGestureState =
+                      _isCombinedHovering ? 'Hovering' : 'Idle';
+                });
+              }
+            },
+            delay: const Duration(milliseconds: 300),
+            owner: this,
+            name: 'gestureReset',
+          );
         },
         onDoubleTap: () {
           _addEvent('Combined: Double-tap');
           setState(() {
             _combinedGestureState = 'Double-tapped!';
           });
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              setState(() {
-                _combinedGestureState =
-                    _isCombinedHovering ? 'Hovering' : 'Idle';
-              });
-            }
-          });
+          SchedulerBinding.instance.scheduler.once(
+            (_) {
+              if (mounted) {
+                setState(() {
+                  _combinedGestureState =
+                      _isCombinedHovering ? 'Hovering' : 'Idle';
+                });
+              }
+            },
+            delay: const Duration(milliseconds: 300),
+            owner: this,
+            name: 'gestureReset',
+          );
         },
         onLongPress: () {
           _addEvent('Combined: Long press');
           setState(() {
             _combinedGestureState = 'Long-pressed!';
           });
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (mounted) {
-              setState(() {
-                _combinedGestureState =
-                    _isCombinedHovering ? 'Hovering' : 'Idle';
-              });
-            }
-          });
+          SchedulerBinding.instance.scheduler.once(
+            (_) {
+              if (mounted) {
+                setState(() {
+                  _combinedGestureState =
+                      _isCombinedHovering ? 'Hovering' : 'Idle';
+                });
+              }
+            },
+            delay: const Duration(milliseconds: 300),
+            owner: this,
+            name: 'gestureReset',
+          );
         },
         child: Container(
           width: 68,

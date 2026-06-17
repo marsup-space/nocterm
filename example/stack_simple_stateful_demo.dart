@@ -21,31 +21,52 @@ class _StackSimpleStatefulDemoState extends State<StackSimpleStatefulDemo> {
   void initState() {
     super.initState();
     // Simulate automatic counter increment every second
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          counter++;
-        });
-      }
-    });
+    SchedulerBinding.instance.scheduler.once(
+      (_) {
+        if (mounted) {
+          setState(() {
+            counter++;
+          });
+        }
+      },
+      delay: const Duration(seconds: 1),
+      owner: this,
+      name: 'stackCounter',
+    );
 
     // Change color after 2 seconds
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          selectedColor = 'green';
-        });
-      }
-    });
+    SchedulerBinding.instance.scheduler.once(
+      (_) {
+        if (mounted) {
+          setState(() {
+            selectedColor = 'green';
+          });
+        }
+      },
+      delay: const Duration(seconds: 2),
+      owner: this,
+      name: 'stackColor',
+    );
 
     // Toggle info box after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() {
-          showInfo = false;
-        });
-      }
-    });
+    SchedulerBinding.instance.scheduler.once(
+      (_) {
+        if (mounted) {
+          setState(() {
+            showInfo = false;
+          });
+        }
+      },
+      delay: const Duration(seconds: 3),
+      owner: this,
+      name: 'stackInfo',
+    );
+  }
+
+  @override
+  void dispose() {
+    SchedulerBinding.instance.scheduler.cancelOwner(this);
+    super.dispose();
   }
 
   Color getColor() {
@@ -214,21 +235,28 @@ class StatefulChild extends StatefulComponent {
 
 class _StatefulChildState extends State<StatefulChild> {
   int counter = 0;
+  SchedulerHandle? _counterTicker;
 
   @override
   void initState() {
     super.initState();
-    _startCounterLoop();
+    _counterTicker = SchedulerBinding.instance.scheduler.every(
+      const Duration(seconds: 1),
+      (_) {
+        if (!mounted) return;
+        setState(() {
+          counter++;
+        });
+      },
+      owner: this,
+      name: 'stackChildCounter',
+    );
   }
 
-  void _startCounterLoop() async {
-    while (mounted) {
-      await Future.delayed(const Duration(seconds: 1));
-      if (!mounted) break;
-      setState(() {
-        counter++;
-      });
-    }
+  @override
+  void dispose() {
+    _counterTicker?.cancel();
+    super.dispose();
   }
 
   @override

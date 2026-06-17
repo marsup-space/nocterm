@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:nocterm/nocterm.dart';
 
@@ -15,15 +14,18 @@ class BentoFullDemo extends StatefulComponent {
 }
 
 class _BentoFullDemoState extends State<BentoFullDemo> {
-  Timer? _timer;
+  SchedulerHandle? _timer;
   double _time = 0;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 45), (_) {
-      setState(() => _time += 0.04);
-    });
+    _timer = SchedulerBinding.instance.scheduler.every(
+      const Duration(milliseconds: 45),
+      (_) => setState(() => _time += 0.04),
+      owner: this,
+      name: 'bentoGlow',
+    );
   }
 
   @override

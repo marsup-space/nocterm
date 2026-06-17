@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:nocterm/nocterm.dart';
 
@@ -18,7 +17,7 @@ class _HomeAutomationDashboardState extends State<HomeAutomationDashboard> {
   int _selectedRoom = 0;
   final List<String> _rooms = ['Living Room', 'Kitchen', 'Bedroom', 'Office'];
 
-  Timer? _clockTimer;
+  SchedulerHandle? _clockTimer;
   String _currentTime = '';
   double _currentTemp = 23.0;
   int _humidity = 45;
@@ -37,13 +36,18 @@ class _HomeAutomationDashboardState extends State<HomeAutomationDashboard> {
   double _todayEnergy = 18.5;
   double _energyPercent = 0.35;
 
-  Timer? _animationTimer;
+  SchedulerHandle? _animationTimer;
 
   @override
   void initState() {
     super.initState();
     _updateTime();
-    _clockTimer = Timer.periodic(Duration(seconds: 1), (_) => _updateTime());
+    _clockTimer = SchedulerBinding.instance.scheduler.every(
+      Duration(seconds: 1),
+      (_) => _updateTime(),
+      owner: this,
+      name: 'homeClock',
+    );
     _startAnimations();
   }
 
@@ -65,16 +69,21 @@ class _HomeAutomationDashboardState extends State<HomeAutomationDashboard> {
   }
 
   void _startAnimations() {
-    _animationTimer = Timer.periodic(Duration(seconds: 3), (_) {
-      setState(() {
-        _currentPower = 1.5 + (math.Random().nextDouble() * 2.0);
-        _todayEnergy += 0.1;
-        _energyPercent = 0.2 + (math.Random().nextDouble() * 0.4);
+    _animationTimer = SchedulerBinding.instance.scheduler.every(
+      Duration(seconds: 3),
+      (_) {
+        setState(() {
+          _currentPower = 1.5 + (math.Random().nextDouble() * 2.0);
+          _todayEnergy += 0.1;
+          _energyPercent = 0.2 + (math.Random().nextDouble() * 0.4);
 
-        _currentTemp = 22.0 + (math.Random().nextDouble() * 3.0);
-        _humidity = 40 + math.Random().nextInt(20);
-      });
-    });
+          _currentTemp = 22.0 + (math.Random().nextDouble() * 3.0);
+          _humidity = 40 + math.Random().nextInt(20);
+        });
+      },
+      owner: this,
+      name: 'homeStats',
+    );
   }
 
   void _toggleDevice(String device) {

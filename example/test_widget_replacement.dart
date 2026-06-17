@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 
 void main() async {
@@ -20,18 +19,34 @@ class _WidgetReplacementTestState extends State<WidgetReplacementTest> {
     super.initState();
 
     // Phase 1: Switch to DecoratedBox after 1 second
-    Future.delayed(Duration(seconds: 1), () {
-      setState(() {
-        phase = 1;
-      });
-    });
+    SchedulerBinding.instance.scheduler.once(
+      (_) {
+        setState(() {
+          phase = 1;
+        });
+      },
+      delay: Duration(seconds: 1),
+      owner: this,
+      name: 'widgetReplacementPhase1',
+    );
 
     // Phase 2: Switch back to Text after 2 seconds
-    Future.delayed(Duration(seconds: 2), () {
-      setState(() {
-        phase = 2;
-      });
-    });
+    SchedulerBinding.instance.scheduler.once(
+      (_) {
+        setState(() {
+          phase = 2;
+        });
+      },
+      delay: Duration(seconds: 2),
+      owner: this,
+      name: 'widgetReplacementPhase2',
+    );
+  }
+
+  @override
+  void dispose() {
+    SchedulerBinding.instance.scheduler.cancelOwner(this);
+    super.dispose();
   }
 
   @override

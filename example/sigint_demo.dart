@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 
 void main() async {
@@ -24,7 +23,7 @@ class _SigintDemoState extends State<SigintDemo> {
   int _ctrlCCount = 0;
   String _status = 'Ready';
   String _lastKey = 'None';
-  Timer? _resetTimer;
+  SchedulerHandle? _resetTimer;
 
   @override
   void dispose() {
@@ -44,13 +43,18 @@ class _SigintDemoState extends State<SigintDemo> {
         if (_ctrlCCount == 1) {
           _status = 'Warning';
           // Auto-reset after 3 seconds
-          _resetTimer = Timer(const Duration(seconds: 3), () {
-            setState(() {
-              _ctrlCCount = 0;
-              _status = 'Ready';
-              _lastKey = '(timer reset)';
-            });
-          });
+          _resetTimer = SchedulerBinding.instance.scheduler.once(
+            (_) {
+              setState(() {
+                _ctrlCCount = 0;
+                _status = 'Ready';
+                _lastKey = '(timer reset)';
+              });
+            },
+            delay: const Duration(seconds: 3),
+            owner: this,
+            name: 'ctrlCReset',
+          );
         } else if (_ctrlCCount >= 2) {
           _status = 'Exiting';
           // Use shutdownApp for safe exit with cleanup

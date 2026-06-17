@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:nocterm/nocterm.dart';
@@ -19,7 +18,7 @@ class _ChatDemoState extends State<ChatDemo> {
   final AutoScrollController scrollController = AutoScrollController();
   final TextEditingController textController = TextEditingController();
   bool inputHasFocus = false;
-  Timer? autoMessageTimer;
+  SchedulerHandle? autoMessageTimer;
   int messageCounter = 1;
 
   // Sample auto messages for demo
@@ -50,6 +49,7 @@ class _ChatDemoState extends State<ChatDemo> {
   @override
   void dispose() {
     autoMessageTimer?.cancel();
+    SchedulerBinding.instance.scheduler.cancelOwner(this);
     scrollController.dispose();
     textController.dispose();
     super.dispose();
@@ -73,19 +73,24 @@ class _ChatDemoState extends State<ChatDemo> {
       textController.clear();
 
       // Simulate a response after a delay
-      Future.delayed(Duration(milliseconds: 500 + Random().nextInt(1000)), () {
-        if (mounted) {
-          final responses = [
-            'Interesting point!',
-            'I see what you mean.',
-            'That makes sense.',
-            'Tell me more about that.',
-            'Good question!',
-            'Let me think about that...',
-          ];
-          _addMessage('Bot', responses[Random().nextInt(responses.length)]);
-        }
-      });
+      SchedulerBinding.instance.scheduler.once(
+        (_) {
+          if (mounted) {
+            final responses = [
+              'Interesting point!',
+              'I see what you mean.',
+              'That makes sense.',
+              'Tell me more about that.',
+              'Good question!',
+              'Let me think about that...',
+            ];
+            _addMessage('Bot', responses[Random().nextInt(responses.length)]);
+          }
+        },
+        delay: Duration(milliseconds: 500 + Random().nextInt(1000)),
+        owner: this,
+        name: 'botResponse',
+      );
     }
   }
 
@@ -95,14 +100,19 @@ class _ChatDemoState extends State<ChatDemo> {
       autoMessageTimer = null;
       _addMessage('System', 'Auto messages stopped.', isSystem: true);
     } else {
-      autoMessageTimer = Timer.periodic(Duration(seconds: 2), (_) {
-        if (autoMessageIndex < autoMessages.length) {
-          _addMessage('Bot', autoMessages[autoMessageIndex]);
-          autoMessageIndex++;
-        } else {
-          _addMessage('Bot', 'Random message #${messageCounter++}');
-        }
-      });
+      autoMessageTimer = SchedulerBinding.instance.scheduler.every(
+        Duration(seconds: 2),
+        (_) {
+          if (autoMessageIndex < autoMessages.length) {
+            _addMessage('Bot', autoMessages[autoMessageIndex]);
+            autoMessageIndex++;
+          } else {
+            _addMessage('Bot', 'Random message #${messageCounter++}');
+          }
+        },
+        owner: this,
+        name: 'autoMessages',
+      );
       _addMessage('System', 'Auto messages started.', isSystem: true);
     }
   }

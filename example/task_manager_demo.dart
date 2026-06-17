@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/components/decorated_box.dart';
@@ -22,7 +21,7 @@ class _TaskManagerAppState extends State<TaskManagerApp> {
     'Performance',
     'Network'
   ];
-  Timer? _updateTimer;
+  SchedulerHandle? _updateTimer;
 
   // Mock data
   List<ProcessInfo> _processes = [];
@@ -35,7 +34,12 @@ class _TaskManagerAppState extends State<TaskManagerApp> {
   void initState() {
     super.initState();
     _initializeMockData();
-    _updateTimer = Timer.periodic(Duration(seconds: 1), (_) => _updateData());
+    _updateTimer = SchedulerBinding.instance.scheduler.every(
+      Duration(seconds: 1),
+      (_) => _updateData(),
+      owner: this,
+      name: 'taskManager',
+    );
   }
 
   @override

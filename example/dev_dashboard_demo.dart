@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:nocterm/nocterm.dart';
 
@@ -16,7 +15,7 @@ class DevDashboard extends StatefulComponent {
 }
 
 class _DevDashboardState extends State<DevDashboard> {
-  Timer? _timer;
+  SchedulerHandle? _timer;
   final _random = math.Random();
 
   // Live metrics
@@ -71,20 +70,25 @@ class _DevDashboardState extends State<DevDashboard> {
   }
 
   void _startSimulation() {
-    _timer = Timer.periodic(Duration(milliseconds: 1200), (_) {
-      if (!mounted) return;
-      setState(() {
-        _requests += 5 + _random.nextInt(15);
-        _activeUsers = 20 + _random.nextInt(10);
-        _responseTime = 35 + _random.nextDouble() * 30;
-        _memoryMb = 240 + _random.nextDouble() * 40;
-        _cpuPercent = 25 + _random.nextDouble() * 25;
+    _timer = SchedulerBinding.instance.scheduler.every(
+      Duration(milliseconds: 1200),
+      (_) {
+        if (!mounted) return;
+        setState(() {
+          _requests += 5 + _random.nextInt(15);
+          _activeUsers = 20 + _random.nextInt(10);
+          _responseTime = 35 + _random.nextDouble() * 30;
+          _memoryMb = 240 + _random.nextDouble() * 40;
+          _cpuPercent = 25 + _random.nextDouble() * 25;
 
-        // Rotate requests
-        _recentRequests.insert(0, _generateRequest());
-        if (_recentRequests.length > 8) _recentRequests.removeLast();
-      });
-    });
+          // Rotate requests
+          _recentRequests.insert(0, _generateRequest());
+          if (_recentRequests.length > 8) _recentRequests.removeLast();
+        });
+      },
+      owner: this,
+      name: 'devDashboard',
+    );
   }
 
   RequestLog _generateRequest() {

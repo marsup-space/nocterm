@@ -195,6 +195,7 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
 
   /// Shutdown the test binding
   void shutdown() {
+    scheduler.cancelAll();
     _testKeyboardController.close();
     // Clear the singleton instance to allow multiple tests
     NoctermBinding.resetInstance();

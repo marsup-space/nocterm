@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 
 /// Profiling app to measure where CPU time goes during active rendering.
@@ -13,11 +12,6 @@ import 'package:nocterm/nocterm.dart';
 /// - Paint phase (writing to buffer)
 /// - Diff render phase (comparing buffers and writing to terminal)
 void main() {
-  // Enable detailed profiling after the app starts
-  Future.delayed(const Duration(milliseconds: 500), () {
-    TerminalBinding.instance.startDetailedProfiling();
-  });
-
   runApp(const ProfilingApp());
 }
 
@@ -30,22 +24,34 @@ class ProfilingApp extends StatefulComponent {
 
 class _ProfilingAppState extends State<ProfilingApp> {
   int _frameCount = 0;
-  Timer? _timer;
+  SchedulerHandle? _profilingStart;
+  SchedulerHandle? _timer;
 
   @override
   void initState() {
     super.initState();
 
+    _profilingStart = SchedulerBinding.instance.scheduler.once(
+      (_) => TerminalBinding.instance.startDetailedProfiling(),
+      delay: const Duration(milliseconds: 500),
+      owner: this,
+      name: 'startProfiling',
+    );
+
     // Trigger rebuilds at ~60fps to simulate active rendering
-    _timer = Timer.periodic(const Duration(milliseconds: 16), (_) {
-      setState(() {
+    _timer = SchedulerBinding.instance.scheduler.schedule(
+      (_) => setState(() {
         _frameCount++;
-      });
-    });
+      }),
+      owner: this,
+      name: 'profileRendering',
+      fps: Fps.max,
+    );
   }
 
   @override
   void dispose() {
+    _profilingStart?.cancel();
     _timer?.cancel();
     TerminalBinding.instance.stopDetailedProfiling();
     super.dispose();

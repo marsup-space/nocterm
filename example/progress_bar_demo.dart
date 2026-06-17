@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 
 class ProgressBarDemo extends StatefulComponent {
@@ -11,7 +10,7 @@ class _ProgressBarDemoState extends State<ProgressBarDemo> {
   double uploadProgress = 0.0;
   double processingProgress = 0.0;
   bool isIndeterminate = false;
-  Timer? _timer;
+  SchedulerHandle? _timer;
   final scrollController = ScrollController();
 
   @override
@@ -22,29 +21,34 @@ class _ProgressBarDemoState extends State<ProgressBarDemo> {
 
   void _startAnimation() {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(milliseconds: 100), (timer) {
-      setState(() {
-        // Animate download progress
-        if (downloadProgress < 1.0) {
-          downloadProgress += 0.02;
-        }
+    _timer = SchedulerBinding.instance.scheduler.every(
+      Duration(milliseconds: 100),
+      (_) {
+        setState(() {
+          // Animate download progress
+          if (downloadProgress < 1.0) {
+            downloadProgress += 0.02;
+          }
 
-        // Animate upload progress (slower)
-        if (uploadProgress < 1.0) {
-          uploadProgress += 0.01;
-        }
+          // Animate upload progress (slower)
+          if (uploadProgress < 1.0) {
+            uploadProgress += 0.01;
+          }
 
-        // Animate processing progress (variable speed)
-        if (processingProgress < 1.0) {
-          processingProgress += 0.015;
-        } else {
-          // Reset all when done
-          downloadProgress = 0.0;
-          uploadProgress = 0.0;
-          processingProgress = 0.0;
-        }
-      });
-    });
+          // Animate processing progress (variable speed)
+          if (processingProgress < 1.0) {
+            processingProgress += 0.015;
+          } else {
+            // Reset all when done
+            downloadProgress = 0.0;
+            uploadProgress = 0.0;
+            processingProgress = 0.0;
+          }
+        });
+      },
+      owner: this,
+      name: 'progressBars',
+    );
   }
 
   @override

@@ -8,6 +8,7 @@ class LoggerDemoApp extends StatefulComponent {
 
 class _LoggerDemoAppState extends State<LoggerDemoApp> {
   int _counter = 0;
+  SchedulerHandle? _logTicker;
 
   @override
   void initState() {
@@ -19,18 +20,28 @@ class _LoggerDemoAppState extends State<LoggerDemoApp> {
     print('Multiple log entries are buffered in memory');
 
     // Schedule periodic logs to demonstrate streaming
-    Future.delayed(const Duration(seconds: 1), _logPeriodically);
+    _logTicker = SchedulerBinding.instance.scheduler.every(
+      const Duration(seconds: 1),
+      (_) => _logPeriodically(),
+      owner: this,
+      name: 'loggerDemo',
+      repeat: 10,
+    );
   }
 
   void _logPeriodically() {
     _counter++;
     print('Periodic log #$_counter at ${DateTime.now()}');
 
-    if (_counter < 10) {
-      Future.delayed(const Duration(seconds: 1), _logPeriodically);
-    } else {
+    if (_counter >= 10) {
       print('Demo complete - generated $_counter log messages');
     }
+  }
+
+  @override
+  void dispose() {
+    _logTicker?.cancel();
+    super.dispose();
   }
 
   @override

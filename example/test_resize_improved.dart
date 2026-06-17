@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 
@@ -14,7 +13,7 @@ class ResizeTestApp extends StatefulComponent {
 class _ResizeTestAppState extends State<ResizeTestApp> {
   Size? _currentSize;
   final List<String> _sizeHistory = [];
-  Timer? _sizeCheckTimer;
+  SchedulerHandle? _sizeCheckTimer;
   int _resizeCount = 0;
 
   @override
@@ -22,9 +21,12 @@ class _ResizeTestAppState extends State<ResizeTestApp> {
     super.initState();
     _updateSize();
     // Poll for size changes to verify resize events are working
-    _sizeCheckTimer = Timer.periodic(Duration(milliseconds: 500), (_) {
-      _updateSize();
-    });
+    _sizeCheckTimer = SchedulerBinding.instance.scheduler.every(
+      Duration(milliseconds: 500),
+      (_) => _updateSize(),
+      owner: this,
+      name: 'resizePoll',
+    );
   }
 
   @override

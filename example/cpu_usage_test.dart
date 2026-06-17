@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 
 /// Test app to measure CPU usage from different sources:
-/// - Spinners (Timer.periodic every 100ms)
-/// - Cursor blink (Timer.periodic every 500ms)
+/// - Spinners (scheduler every 100ms)
+/// - Cursor blink (scheduler every 500ms)
 /// - ListView with many items
 ///
 /// Run with: dart run example/cpu_usage_test.dart
@@ -25,16 +24,21 @@ class _CpuUsageTestAppState extends State<CpuUsageTestApp> {
   bool _showListView = false;
   int _listItemCount = 100;
   int _frameCount = 0;
-  Timer? _frameCountTimer;
+  SchedulerHandle? _frameCountTimer;
 
   @override
   void initState() {
     super.initState();
     // Count frames every second
-    _frameCountTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      print('Frames in last second: $_frameCount');
-      _frameCount = 0;
-    });
+    _frameCountTimer = SchedulerBinding.instance.scheduler.every(
+      const Duration(seconds: 1),
+      (_) {
+        print('Frames in last second: $_frameCount');
+        _frameCount = 0;
+      },
+      owner: this,
+      name: 'cpuFrameCounter',
+    );
   }
 
   @override
@@ -125,7 +129,7 @@ class _CpuUsageTestAppState extends State<CpuUsageTestApp> {
                         children: [
                           const _TestSpinner(),
                           const SizedBox(width: 1),
-                          const Text('Spinner running (100ms timer)'),
+                          const Text('Spinner running (100ms scheduler)'),
                         ],
                       ),
                     ),
@@ -138,7 +142,7 @@ class _CpuUsageTestAppState extends State<CpuUsageTestApp> {
                         children: [
                           const _TestCursorBlink(),
                           const SizedBox(width: 1),
-                          const Text('Cursor blinking (500ms timer)'),
+                          const Text('Cursor blinking (500ms scheduler)'),
                         ],
                       ),
                     ),
@@ -182,17 +186,20 @@ class _TestSpinner extends StatefulComponent {
 
 class _TestSpinnerState extends State<_TestSpinner> {
   static const _frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-  Timer? _timer;
+  SchedulerHandle? _timer;
   int _index = 0;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      setState(() {
+    _timer = SchedulerBinding.instance.scheduler.every(
+      const Duration(milliseconds: 100),
+      (_) => setState(() {
         _index = (_index + 1) % _frames.length;
-      });
-    });
+      }),
+      owner: this,
+      name: 'testSpinner',
+    );
   }
 
   @override
@@ -216,17 +223,20 @@ class _TestCursorBlink extends StatefulComponent {
 }
 
 class _TestCursorBlinkState extends State<_TestCursorBlink> {
-  Timer? _timer;
+  SchedulerHandle? _timer;
   bool _visible = true;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      setState(() {
+    _timer = SchedulerBinding.instance.scheduler.every(
+      const Duration(milliseconds: 500),
+      (_) => setState(() {
         _visible = !_visible;
-      });
-    });
+      }),
+      owner: this,
+      name: 'cursorBlink',
+    );
   }
 
   @override

@@ -30,6 +30,7 @@ class _ChatDemoReverseState extends State<ChatDemoReverse> {
 
   @override
   void dispose() {
+    SchedulerBinding.instance.scheduler.cancelOwner(this);
     textController.dispose();
     scrollController.dispose();
     super.dispose();
@@ -43,13 +44,18 @@ class _ChatDemoReverseState extends State<ChatDemoReverse> {
       });
 
       // Simulate bot response after a moment
-      Future.delayed(Duration(milliseconds: 500), () {
-        if (mounted) {
-          setState(() {
-            messages.add('Bot: Thanks for your message!');
-          });
-        }
-      });
+      SchedulerBinding.instance.scheduler.once(
+        (_) {
+          if (mounted) {
+            setState(() {
+              messages.add('Bot: Thanks for your message!');
+            });
+          }
+        },
+        delay: Duration(milliseconds: 500),
+        owner: this,
+        name: 'reverseBotResponse',
+      );
     }
   }
 

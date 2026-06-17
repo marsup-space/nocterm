@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:nocterm/nocterm.dart';
 
@@ -22,14 +21,19 @@ class _ShowcaseAppState extends State<ShowcaseApp> {
     'Colors',
     'About'
   ];
-  Timer? _clockTimer;
+  SchedulerHandle? _clockTimer;
   String _currentTime = '';
 
   @override
   void initState() {
     super.initState();
     _updateTime();
-    _clockTimer = Timer.periodic(Duration(seconds: 1), (_) => _updateTime());
+    _clockTimer = SchedulerBinding.instance.scheduler.every(
+      Duration(seconds: 1),
+      (_) => _updateTime(),
+      owner: this,
+      name: 'showcaseClock',
+    );
   }
 
   @override
@@ -239,7 +243,7 @@ class DashboardTab extends StatefulComponent {
 }
 
 class _DashboardTabState extends State<DashboardTab> {
-  Timer? _timer;
+  SchedulerHandle? _timer;
   List<double> _cpuHistory = List.generate(20, (_) => 0.0);
   double _cpu = 0.0;
   double _memory = 0.0;
@@ -248,14 +252,19 @@ class _DashboardTabState extends State<DashboardTab> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
-      setState(() {
-        _cpu = 20 + math.Random().nextDouble() * 60;
-        _memory = 40 + math.Random().nextDouble() * 30;
-        _disk = 60 + math.Random().nextDouble() * 20;
-        _cpuHistory = [..._cpuHistory.skip(1), _cpu];
-      });
-    });
+    _timer = SchedulerBinding.instance.scheduler.every(
+      Duration(seconds: 1),
+      (_) {
+        setState(() {
+          _cpu = 20 + math.Random().nextDouble() * 60;
+          _memory = 40 + math.Random().nextDouble() * 30;
+          _disk = 60 + math.Random().nextDouble() * 20;
+          _cpuHistory = [..._cpuHistory.skip(1), _cpu];
+        });
+      },
+      owner: this,
+      name: 'showcaseDashboard',
+    );
   }
 
   @override
