@@ -196,14 +196,38 @@ class HintController implements Listenable {
     // Same source re-requesting: update the live fields in place and
     // restart the delay so the hint re-appears at the new position
     // even if the user only jiggled the mouse by a few cells.
+    //
+    // The overlay only re-reads the live fields when it gets a
+    // [_notify] callback. If the hint was already visible, the
+    // fields can be updated silently — the overlay would otherwise
+    // keep painting the stale content. We track the change and
+    // notify when (and only when) at least one field actually
+    // differs from what the overlay last rendered.
     if (_activeRequestId != null && _activeRequestId == requestId) {
-      _activePosition = position;
-      if (_activeColor != color) _activeColor = color;
-      if (_activeHint != content) _activeHint = content;
-      if (_activeMaxWidth != maxWidth) _activeMaxWidth = maxWidth;
-      if (_activePlacement != placement) _activePlacement = placement;
+      var changed = false;
+      if (_activePosition != position) {
+        _activePosition = position;
+        changed = true;
+      }
+      if (_activeColor != color) {
+        _activeColor = color;
+        changed = true;
+      }
+      if (_activeHint != content) {
+        _activeHint = content;
+        changed = true;
+      }
+      if (_activeMaxWidth != maxWidth) {
+        _activeMaxWidth = maxWidth;
+        changed = true;
+      }
+      if (_activePlacement != placement) {
+        _activePlacement = placement;
+        changed = true;
+      }
       if (_activeSourceBounds != sourceBounds) {
         _activeSourceBounds = sourceBounds;
+        changed = true;
       }
       if (delay == Duration.zero) {
         _pendingTimer?.cancel();
@@ -212,12 +236,21 @@ class HintController implements Listenable {
         if (!_visible) {
           _visible = true;
           _notify();
+        } else if (changed) {
+          // The hint is already on screen with a different content
+          // / position / color (e.g. the user moved the mouse from
+          // one scroll-bar marker to another). The fields above are
+          // already updated — just notify the overlay so it picks
+          // them up.
+          _notify();
         }
       } else if (!_visible) {
         _restartDelay(delay);
-      } else {
-        // Already visible; just keep the existing timer. No-op
-        // besides the live-field update above.
+      } else if (changed) {
+        // Already visible with a non-zero delay: the existing timer
+        // is fine, but the overlay still needs to re-render to pick
+        // up the new live fields.
+        _notify();
       }
       return;
     }
