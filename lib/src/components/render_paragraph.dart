@@ -16,11 +16,15 @@ class RenderParagraph extends RenderObject with Selectable {
     bool softWrap = true,
     TextOverflow overflow = TextOverflow.clip,
     int? maxLines,
+    String Function(String text)? selectionTextTransformer,
+    bool Function(String text)? selectionHighlightPredicate,
   })  : _text = text,
         _textAlign = textAlign,
         _softWrap = softWrap,
         _overflow = overflow,
-        _maxLines = maxLines;
+        _maxLines = maxLines,
+        _selectionTextTransformer = selectionTextTransformer,
+        _selectionHighlightPredicate = selectionHighlightPredicate;
 
   InlineSpan _text;
   InlineSpan get text => _text;
@@ -70,6 +74,23 @@ class RenderParagraph extends RenderObject with Selectable {
     if (_maxLines == value) return;
     _maxLines = value;
     markNeedsLayout();
+  }
+
+  String Function(String text)? _selectionTextTransformer;
+  String Function(String text)? get selectionTextTransformer =>
+      _selectionTextTransformer;
+  set selectionTextTransformer(String Function(String text)? value) {
+    if (_selectionTextTransformer == value) return;
+    _selectionTextTransformer = value;
+  }
+
+  bool Function(String text)? _selectionHighlightPredicate;
+  bool Function(String text)? get selectionHighlightPredicate =>
+      _selectionHighlightPredicate;
+  set selectionHighlightPredicate(bool Function(String text)? value) {
+    if (_selectionHighlightPredicate == value) return;
+    _selectionHighlightPredicate = value;
+    markNeedsPaint();
   }
 
   // Cache the styled segments to avoid recomputing them
@@ -199,6 +220,11 @@ class RenderParagraph extends RenderObject with Selectable {
   TextLayoutResult? get selectableLayout => _layoutResult;
 
   @override
+  String selectionTextFor(String text) => _selectionTextTransformer == null
+      ? text
+      : _selectionTextTransformer!(text);
+
+  @override
   void paint(TerminalCanvas canvas, Offset offset) {
     super.paint(canvas, offset);
 
@@ -317,8 +343,12 @@ class RenderParagraph extends RenderObject with Selectable {
         if (localSelStart < localSelEnd) {
           final selectedText =
               segmentText.substring(localSelStart, localSelEnd);
-          final selectionStyle = (segment.style ?? const TextStyle())
-              .copyWith(backgroundColor: selectionColor ?? Colors.blue);
+          final shouldHighlight =
+              _selectionHighlightPredicate?.call(selectedText) ?? true;
+          final selectionStyle = shouldHighlight
+              ? (segment.style ?? const TextStyle())
+                  .copyWith(backgroundColor: selectionColor ?? Colors.blue)
+              : segment.style;
           canvas.drawText(
             Offset(currentX, offset.dy),
             selectedText,

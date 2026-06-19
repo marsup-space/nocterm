@@ -1212,6 +1212,7 @@ class RenderSelectionArea extends RenderMouseRegion {
     final buf = StringBuffer(initial);
     _appendSelectedText(
       buf,
+      selectable: null,
       text: text,
       lines: lines,
       start: start,
@@ -1245,6 +1246,7 @@ class RenderSelectionArea extends RenderMouseRegion {
     final lines = layout?.lines;
     _appendSelectedText(
       buf,
+      selectable: s,
       text: text,
       lines: lines,
       start: start,
@@ -1258,6 +1260,7 @@ class RenderSelectionArea extends RenderMouseRegion {
 
   void _appendSelectedText(
     StringBuffer buf, {
+    required Selectable? selectable,
     required String text,
     required List<String>? lines,
     required int start,
@@ -1288,7 +1291,8 @@ class RenderSelectionArea extends RenderMouseRegion {
           }
         }
         lastBottomRow = lineRow;
-        buf.write(text.substring(selStart, selEnd));
+        final selected = text.substring(selStart, selEnd);
+        buf.write(selectable?.selectionTextFor(selected) ?? selected);
       }
       _lastBottomRow = lastBottomRow;
       return;
@@ -1305,7 +1309,8 @@ class RenderSelectionArea extends RenderMouseRegion {
       }
     }
     _lastBottomRow = bottomRow;
-    buf.write(text.substring(start, end));
+    buf.write(selectable?.selectionTextFor(text.substring(start, end)) ??
+        text.substring(start, end));
   }
 
   /// Global paint offset of this render object.

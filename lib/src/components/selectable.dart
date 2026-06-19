@@ -19,6 +19,11 @@ mixin Selectable on RenderObject {
   /// The cached layout result (line-wrapped text).
   TextLayoutResult? get selectableLayout;
 
+  /// Converts raw selected text into the text delivered to selection
+  /// callbacks. Most render objects return the text unchanged, but rich
+  /// renderers can use this to omit visual-only chrome from copied text.
+  String selectionTextFor(String text) => text;
+
   int? _selectionStart;
   int? _selectionEnd;
 

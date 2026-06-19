@@ -26,6 +26,8 @@ class RichText extends SingleChildRenderObjectComponent {
     this.softWrap = true,
     this.overflow = TextOverflow.clip,
     this.maxLines,
+    this.selectionTextTransformer,
+    this.selectionHighlightPredicate,
   });
 
   /// The text to display in this widget.
@@ -50,6 +52,15 @@ class RichText extends SingleChildRenderObjectComponent {
   /// of lines.
   final int? maxLines;
 
+  /// Optional transform applied to selected text before selection callbacks
+  /// receive it. This is useful for rich renderers that include visual-only
+  /// decoration in their plain text.
+  final String Function(String text)? selectionTextTransformer;
+
+  /// Optional predicate that decides whether a selected fragment should be
+  /// painted with selection highlighting.
+  final bool Function(String text)? selectionHighlightPredicate;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderParagraph(
@@ -58,6 +69,8 @@ class RichText extends SingleChildRenderObjectComponent {
       softWrap: softWrap,
       overflow: overflow,
       maxLines: maxLines,
+      selectionTextTransformer: selectionTextTransformer,
+      selectionHighlightPredicate: selectionHighlightPredicate,
     );
   }
 
@@ -68,6 +81,8 @@ class RichText extends SingleChildRenderObjectComponent {
       ..textAlign = textAlign
       ..softWrap = softWrap
       ..overflow = overflow
-      ..maxLines = maxLines;
+      ..maxLines = maxLines
+      ..selectionTextTransformer = selectionTextTransformer
+      ..selectionHighlightPredicate = selectionHighlightPredicate;
   }
 }
