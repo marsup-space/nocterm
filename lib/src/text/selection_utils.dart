@@ -6,6 +6,17 @@ import 'package:nocterm/src/framework/terminal_canvas.dart';
 
 import '../utils/unicode_width.dart';
 
+/// Returns a readable foreground color for text painted on [background].
+///
+/// Selection highlighting replaces the background behind syntax-highlighted
+/// text. Without also replacing the foreground, some terminal renderers end up
+/// with very low contrast text, especially under retained selection overlays.
+Color foregroundForSelection(Color background) {
+  final luminance =
+      0.2126 * background.r + 0.7152 * background.g + 0.0722 * background.b;
+  return luminance > 0.55 ? Colors.black : Colors.white;
+}
+
 /// Utilities for text selection hit testing and painting.
 ///
 /// Computes the character offset for the start of each line in [text].
@@ -97,8 +108,10 @@ void paintTextWithSelection({
       final beforeWidth = localSelStart > 0
           ? UnicodeWidth.stringWidth(line.substring(0, localSelStart))
           : 0;
-      final selectionStyle = (style ?? const TextStyle())
-          .copyWith(backgroundColor: selectionColor);
+      final selectionStyle = (style ?? const TextStyle()).copyWith(
+        color: foregroundForSelection(selectionColor),
+        backgroundColor: selectionColor,
+      );
       canvas.drawText(
         offset + Offset(beforeWidth.toDouble(), 0),
         selectedText,

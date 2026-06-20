@@ -2,6 +2,7 @@ import 'package:characters/characters.dart';
 import 'package:nocterm/nocterm.dart' hide TextAlign;
 import 'package:nocterm/src/framework/terminal_canvas.dart';
 
+import '../text/selection_utils.dart' as selection_utils;
 import '../text/text_layout_engine.dart';
 import '../utils/unicode_width.dart';
 export '../text/text_layout_engine.dart' show TextOverflow, TextAlign;
@@ -345,9 +346,13 @@ class RenderParagraph extends RenderObject with Selectable {
               segmentText.substring(localSelStart, localSelEnd);
           final shouldHighlight =
               _selectionHighlightPredicate?.call(selectedText) ?? true;
+          final selectionBackground = selectionColor ?? Colors.blue;
           final selectionStyle = shouldHighlight
-              ? (segment.style ?? const TextStyle())
-                  .copyWith(backgroundColor: selectionColor ?? Colors.blue)
+              ? (segment.style ?? const TextStyle()).copyWith(
+                  color: selection_utils
+                      .foregroundForSelection(selectionBackground),
+                  backgroundColor: selectionBackground,
+                )
               : segment.style;
           canvas.drawText(
             Offset(currentX, offset.dy),
