@@ -590,6 +590,12 @@ void main() {
           );
 
           await tester.press(1, 0);
+          // The first left-button press of a new gesture is parked for a
+          // short window by MouseTracker (so a spurious trackpad press
+          // during a two-finger scroll can be discarded when the next
+          // wheel event arrives). Pump past that window so the press
+          // actually reaches the SelectionArea.
+          await tester.pump(const Duration(milliseconds: 60));
           expect(SelectionDragState.isActive, isTrue);
 
           final state = _SelectionAreaUnmountHarness.lastState!;

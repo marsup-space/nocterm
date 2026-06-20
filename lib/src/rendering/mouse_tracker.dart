@@ -40,44 +40,151 @@ class MouseTrackerAnnotation {
 }
 
 /// Tracks mouse annotations and dispatches enter/exit/hover events.
+///
+/// ## Spurious-press deferral
+///
+/// On macOS a trackpad in the middle of a two-finger scroll will sometimes
+/// emit a button-press event when a thumb or palm brushes the surface, with
+/// no matching release. If the press is dispatched immediately, every
+/// widget that branches on `event.pressed` (e.g. `SelectionArea`'s
+/// `_handlePointerDown` or `GestureDetector`'s tap recognizer) starts a
+/// drag/click that the user never asked for; the next wheel event then
+/// extends the spurious selection across the screen.
+///
+/// To prevent this, the first left-button press of a new gesture is
+/// **parked** rather than dispatched. The press is then either:
+///
+///   * dispatched together with the next event, if the next event confirms
+///     the press (a release, or a motion-with-button for a drag), or
+///   * silently dropped, if the next event is a wheel event or any other
+///     non-confirming signal, or
+///   * flushed through to the widgets anyway, if no event follows within
+///     the parked-press timeout (default 100ms) — the assumption being
+///     that a real press that has been sitting for 100ms with no follow-up
+///     is almost certainly a long-press or slow click, not a trackpad
+///     palm brush, and recognizers need to see it to start timers.
+///
+/// Once a press is confirmed and dispatched, subsequent events behave
+/// normally — a release cleanly removes the press, motion events with the
+/// button held drive a drag, etc.
 class MouseTracker {
   /// The set of annotations currently under the mouse cursor.
   final Set<MouseTrackerAnnotation> _hoveredAnnotations = {};
 
   /// The set of mouse buttons currently held down.
+  ///
+  /// Only contains buttons whose press has been confirmed and dispatched.
+  /// A parked press is not in this set.
   final Set<MouseButton> _pressedButtons = {};
 
-  /// Wall-clock time at which each currently-pressed button was first
-  /// observed, keyed by that button.
+  /// A press that arrived but has not yet been dispatched, because we are
+  /// waiting to see whether the next event confirms it.
+  MouseEvent? _pendingPress;
+
+  /// Hit-test result captured alongside [_pendingPress], so we can re-dispatch
+  /// the press at its original position once a confirming event arrives or
+  /// the parked-press timeout fires.
+  MouseHitTestResult? _pendingPressHitTest;
+
+  /// Timer that flushes [_pendingPress] through to the widget tree if no
+  /// confirming event arrives in time. This is the escape hatch for slow
+  /// real gestures (long-press, slow click) that need the press to be
+  /// visible to recognizers in order to start their timers.
+  Timer? _pendingPressTimer;
+
+  /// How long a press may sit parked before it is flushed through to
+  /// widgets anyway.
   ///
-  /// Used together with [_pressConfirmed] to detect "spurious" press events
-  /// (e.g. macOS trackpad palm brushes during a two-finger scroll) that the
-  /// OS never follows up with a release. Without this tracking the button
-  /// would stay latched forever and poison every subsequent hover/wheel
-  /// event with a stale `isPrimaryButtonDown=true`.
-  final Map<MouseButton, DateTime> _pressTimestamps = {};
+  /// 100ms is chosen as a sweet spot:
+  ///   * on a real click the release almost always arrives first (typical
+  ///     human click is 50–150ms but the release characteristically
+  ///     follows the press within tens of milliseconds), so the press is
+  ///     confirmed and dispatched together with the release;
+  ///   * on a trackpad-palm-brush during a scroll, a wheel event arrives
+  ///     within ~16ms, which drops the press before the timer can fire;
+  ///   * on a long-press, the press is flushed at 100ms, recognizers see
+  ///     it and start their long-press timer; the timer then fires at
+  ///     roughly 100ms + the recognizer's threshold.
+  static const _pendingPressTimeout = Duration(milliseconds: 50);
 
-  /// Whether a press has been confirmed by a subsequent motion-with-button
-  /// event. Only unconfirmed presses are eligible for stale-press cleanup;
-  /// a real drag that is still in motion must not be dropped.
-  final Map<MouseButton, bool> _pressConfirmed = {};
-
-  /// Debounced timer for stale-press cleanup. Reset on every event so that
-  /// an active drag (whose motion events keep arriving) never has its
-  /// confirmation window expire.
-  Timer? _stalePressTimer;
-
-  /// A press is considered stale if it is unconfirmed for this long.
+  /// Update the hovered annotations based on hit test results and dispatch
+  /// the event.
   ///
-  /// 200ms comfortably spans:
-  ///   * a single click (press → release is usually <100ms),
-  ///   * a drag (press → first motion-with-button is usually <50ms),
-  /// while still being short enough that a spurious trackpad press during
-  /// a scroll is cleaned up before its side effects become visible.
-  static const _stalePressTimeout = Duration(milliseconds: 200);
-
-  /// Update the hovered annotations based on hit test results and dispatch events.
+  /// For a left-button press that does not follow an already-tracked press,
+  /// the event is *parked* instead of dispatched. The next call to this
+  /// method will either flush the parked press (if the new event confirms
+  /// it) or drop it (if not).
   void updateAnnotations(MouseHitTestResult hitTestResult, MouseEvent event) {
+    // Park the very first left-button press of a new gesture. We do not
+    // know yet whether it is a real click, the start of a drag, or a
+    // spurious trackpad press during a scroll.
+    if (event.button == MouseButton.left &&
+        event.pressed &&
+        !_isLeftAlreadyPressed &&
+        _pendingPress == null) {
+      _pendingPress = event;
+      _pendingPressHitTest = hitTestResult;
+      _pendingPressTimer?.cancel();
+      _pendingPressTimer = Timer(_pendingPressTimeout, _flushPendingPress);
+      return;
+    }
+
+    // A new event arrived — see if it confirms the parked press.
+    final pending = _pendingPress;
+    if (pending != null) {
+      final pendingHitTest = _pendingPressHitTest!;
+      _pendingPress = null;
+      _pendingPressHitTest = null;
+      _pendingPressTimer?.cancel();
+      _pendingPressTimer = null;
+
+      if (_pendingPressIsConfirmed(pending, event)) {
+        // Dispatch the parked press first (so downstream widgets see a
+        // press → release / press → motion sequence), then fall through
+        // to dispatch the current event.
+        _dispatchEvent(pending, pendingHitTest);
+      }
+      // Otherwise the press is silently dropped: the next event was a
+      // wheel or other non-confirming signal, so the press was spurious.
+    }
+
+    _dispatchEvent(event, hitTestResult);
+  }
+
+  /// Whether the parked press at [pending] is confirmed by the arrival of
+  /// [next].
+  ///
+  /// A press is confirmed by:
+  ///   * a release of the same button (with or without motion bit), or
+  ///   * a motion event that still carries the same button (drag motion).
+  bool _pendingPressIsConfirmed(MouseEvent pending, MouseEvent next) {
+    if (next.button != pending.button) return false;
+    if (!next.pressed) return true; // release
+    if (next.pressed && next.isMotion) return true; // motion-with-button
+    return false;
+  }
+
+  bool get _isLeftAlreadyPressed => _pressedButtons.contains(MouseButton.left);
+
+  /// Flush the parked press to the widget tree. Called by the parked-press
+  /// timer when no confirming event arrived in time — at this point we
+  /// assume the press is real (just slow) and recognizers need to see it
+  /// in order to start their long-press / hold timers.
+  void _flushPendingPress() {
+    final pending = _pendingPress;
+    final hitTest = _pendingPressHitTest;
+    _pendingPress = null;
+    _pendingPressHitTest = null;
+    _pendingPressTimer = null;
+
+    if (pending != null && hitTest != null) {
+      _dispatchEvent(pending, hitTest);
+    }
+  }
+
+  /// Dispatch [event] to the annotations under the cursor (per
+  /// [hitTestResult]), updating tracker state along the way.
+  void _dispatchEvent(MouseEvent event, MouseHitTestResult hitTestResult) {
     _updatePressedButtons(event);
     final effectiveEvent = _eventWithButtons(event);
     _hoveredAnnotations.removeWhere((a) => !a.validForMouseTracker);
@@ -153,79 +260,29 @@ class MouseTracker {
     }
     _hoveredAnnotations.clear();
     _pressedButtons.clear();
-    _pressTimestamps.clear();
-    _pressConfirmed.clear();
-    _stalePressTimer?.cancel();
-    _stalePressTimer = null;
+    _dropPendingPress();
   }
 
-  /// Track pressed buttons from press/release events.
+  void _dropPendingPress() {
+    _pendingPress = null;
+    _pendingPressHitTest = null;
+    _pendingPressTimer?.cancel();
+    _pendingPressTimer = null;
+  }
+
+  /// Track pressed buttons from press/release events. Wheel events are
+  /// ignored — they neither add nor remove a pressed button, because the
+  /// user is scrolling rather than holding a button.
   void _updatePressedButtons(MouseEvent event) {
-    // Ignore wheel events; they do not change button state. But they are
-    // a strong signal that the user is scrolling rather than holding a
-    // button, so use the opportunity to drop any unconfirmed press that
-    // has already aged past the timeout — this catches the "spurious
-    // trackpad press during scroll" case immediately instead of waiting
-    // for the debounced timer to fire.
     if (event.button == MouseButton.wheelUp ||
         event.button == MouseButton.wheelDown) {
-      _dropStalePresses();
-      _scheduleStalePressCheck();
       return;
     }
 
-    final now = DateTime.now();
     if (event.pressed) {
-      if (!_pressedButtons.contains(event.button)) {
-        _pressedButtons.add(event.button);
-        _pressTimestamps[event.button] = now;
-        _pressConfirmed[event.button] = false;
-      }
+      _pressedButtons.add(event.button);
     } else {
       _pressedButtons.remove(event.button);
-      _pressTimestamps.remove(event.button);
-      _pressConfirmed.remove(event.button);
-    }
-
-    // A motion event that carries a held button confirms the press. This
-    // is what distinguishes a real drag from a spurious press that the
-    // OS will never follow up with a release.
-    if (event.isMotion && event.pressed) {
-      _pressConfirmed[event.button] = true;
-    }
-
-    _scheduleStalePressCheck();
-  }
-
-  /// (Re)arm the debounced stale-press timer. Every event resets it, so
-  /// an active drag (whose motion events keep arriving) never has its
-  /// confirmation window expire.
-  void _scheduleStalePressCheck() {
-    _stalePressTimer?.cancel();
-    _stalePressTimer = Timer(_stalePressTimeout, _dropStalePresses);
-  }
-
-  /// Drop any press that is unconfirmed and older than the timeout.
-  ///
-  /// Called both synchronously (on every wheel event) and from the
-  /// debounced timer. The next hover/wheel event picks up the new state
-  /// via [_eventWithButtons] and is no longer enriched with a stale
-  /// `buttons: {left}`.
-  void _dropStalePresses() {
-    final now = DateTime.now();
-    final stale = <MouseButton>[];
-
-    _pressTimestamps.forEach((button, pressedAt) {
-      final confirmed = _pressConfirmed[button] ?? false;
-      if (!confirmed && now.difference(pressedAt) >= _stalePressTimeout) {
-        stale.add(button);
-      }
-    });
-
-    for (final button in stale) {
-      _pressedButtons.remove(button);
-      _pressTimestamps.remove(button);
-      _pressConfirmed.remove(button);
     }
   }
 

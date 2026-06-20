@@ -246,5 +246,81 @@ void main() {
         },
       );
     });
+
+    test(
+        'spurious press during a scroll never reaches the widget tree '
+        '(regression for the trackpad palm-brush case)',
+        () async {
+      await testNocterm(
+        'spurious press during scroll is dropped before any dispatch',
+        (tester) async {
+          // Record every event the MouseRegion sees, in order.
+          final observedEvents = <MouseEvent>[];
+
+          await tester.pumpComponent(
+            Container(
+              width: 80,
+              height: 24,
+              child: MouseRegion(
+                onHover: (event) => observedEvents.add(event),
+                onEnter: (event) => observedEvents.add(event),
+                onExit: (event) => observedEvents.add(event),
+                opaque: true,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          );
+
+          // The real failure mode: a stray press event arrives in the
+          // middle of an active scroll, with a wheel event right behind
+          // it. The user is *not* pressing anything; the OS just lost
+          // the touch's release.
+          await tester.sendMouseEvent(
+            const MouseEvent(
+              button: MouseButton.left,
+              x: 10,
+              y: 2,
+              pressed: true,
+            ),
+          );
+          await tester.sendMouseEvent(
+            const MouseEvent(
+              button: MouseButton.wheelUp,
+              x: 10,
+              y: 2,
+              pressed: true,
+            ),
+          );
+          await tester.pump();
+
+          // The wheel event itself is fine to dispatch — that's what
+          // actually scrolls the viewport. The press must NOT be in the
+          // observed event list, because if it were, SelectionArea (or
+          // any other widget branching on `event.pressed` for the left
+          // button) would treat it as the start of a drag and the next
+          // wheel would extend that bogus selection across the screen.
+          final sawLeftPress = observedEvents.any(
+            (e) => e.button == MouseButton.left && e.pressed,
+          );
+          expect(
+            sawLeftPress,
+            isFalse,
+            reason:
+                'Spurious left-button press during a scroll must be dropped '
+                'before dispatch, got: $observedEvents',
+          );
+          // The wheel event did make it through — that's how scrolling
+          // actually works.
+          expect(
+            observedEvents.any(
+              (e) => e.button == MouseButton.wheelUp,
+            ),
+            isTrue,
+            reason: 'Wheel events must still dispatch normally; got: '
+                '$observedEvents',
+          );
+        },
+      );
+    });
   });
 }
