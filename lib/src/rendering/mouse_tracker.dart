@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../keyboard/mouse_event.dart';
 import '../framework/framework.dart';
 import 'mouse_hit_test.dart';
@@ -44,6 +46,35 @@ class MouseTracker {
 
   /// The set of mouse buttons currently held down.
   final Set<MouseButton> _pressedButtons = {};
+
+  /// Wall-clock time at which each currently-pressed button was first
+  /// observed, keyed by that button.
+  ///
+  /// Used together with [_pressConfirmed] to detect "spurious" press events
+  /// (e.g. macOS trackpad palm brushes during a two-finger scroll) that the
+  /// OS never follows up with a release. Without this tracking the button
+  /// would stay latched forever and poison every subsequent hover/wheel
+  /// event with a stale `isPrimaryButtonDown=true`.
+  final Map<MouseButton, DateTime> _pressTimestamps = {};
+
+  /// Whether a press has been confirmed by a subsequent motion-with-button
+  /// event. Only unconfirmed presses are eligible for stale-press cleanup;
+  /// a real drag that is still in motion must not be dropped.
+  final Map<MouseButton, bool> _pressConfirmed = {};
+
+  /// Debounced timer for stale-press cleanup. Reset on every event so that
+  /// an active drag (whose motion events keep arriving) never has its
+  /// confirmation window expire.
+  Timer? _stalePressTimer;
+
+  /// A press is considered stale if it is unconfirmed for this long.
+  ///
+  /// 200ms comfortably spans:
+  ///   * a single click (press → release is usually <100ms),
+  ///   * a drag (press → first motion-with-button is usually <50ms),
+  /// while still being short enough that a spurious trackpad press during
+  /// a scroll is cleaned up before its side effects become visible.
+  static const _stalePressTimeout = Duration(milliseconds: 200);
 
   /// Update the hovered annotations based on hit test results and dispatch events.
   void updateAnnotations(MouseHitTestResult hitTestResult, MouseEvent event) {
@@ -122,20 +153,79 @@ class MouseTracker {
     }
     _hoveredAnnotations.clear();
     _pressedButtons.clear();
+    _pressTimestamps.clear();
+    _pressConfirmed.clear();
+    _stalePressTimer?.cancel();
+    _stalePressTimer = null;
   }
 
   /// Track pressed buttons from press/release events.
   void _updatePressedButtons(MouseEvent event) {
-    // Ignore wheel events; they do not change button state.
+    // Ignore wheel events; they do not change button state. But they are
+    // a strong signal that the user is scrolling rather than holding a
+    // button, so use the opportunity to drop any unconfirmed press that
+    // has already aged past the timeout — this catches the "spurious
+    // trackpad press during scroll" case immediately instead of waiting
+    // for the debounced timer to fire.
     if (event.button == MouseButton.wheelUp ||
         event.button == MouseButton.wheelDown) {
+      _dropStalePresses();
+      _scheduleStalePressCheck();
       return;
     }
 
+    final now = DateTime.now();
     if (event.pressed) {
-      _pressedButtons.add(event.button);
+      if (!_pressedButtons.contains(event.button)) {
+        _pressedButtons.add(event.button);
+        _pressTimestamps[event.button] = now;
+        _pressConfirmed[event.button] = false;
+      }
     } else {
       _pressedButtons.remove(event.button);
+      _pressTimestamps.remove(event.button);
+      _pressConfirmed.remove(event.button);
+    }
+
+    // A motion event that carries a held button confirms the press. This
+    // is what distinguishes a real drag from a spurious press that the
+    // OS will never follow up with a release.
+    if (event.isMotion && event.pressed) {
+      _pressConfirmed[event.button] = true;
+    }
+
+    _scheduleStalePressCheck();
+  }
+
+  /// (Re)arm the debounced stale-press timer. Every event resets it, so
+  /// an active drag (whose motion events keep arriving) never has its
+  /// confirmation window expire.
+  void _scheduleStalePressCheck() {
+    _stalePressTimer?.cancel();
+    _stalePressTimer = Timer(_stalePressTimeout, _dropStalePresses);
+  }
+
+  /// Drop any press that is unconfirmed and older than the timeout.
+  ///
+  /// Called both synchronously (on every wheel event) and from the
+  /// debounced timer. The next hover/wheel event picks up the new state
+  /// via [_eventWithButtons] and is no longer enriched with a stale
+  /// `buttons: {left}`.
+  void _dropStalePresses() {
+    final now = DateTime.now();
+    final stale = <MouseButton>[];
+
+    _pressTimestamps.forEach((button, pressedAt) {
+      final confirmed = _pressConfirmed[button] ?? false;
+      if (!confirmed && now.difference(pressedAt) >= _stalePressTimeout) {
+        stale.add(button);
+      }
+    });
+
+    for (final button in stale) {
+      _pressedButtons.remove(button);
+      _pressTimestamps.remove(button);
+      _pressConfirmed.remove(button);
     }
   }
 
