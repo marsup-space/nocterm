@@ -249,8 +249,7 @@ void main() {
 
     test(
         'spurious press during a scroll never reaches the widget tree '
-        '(regression for the trackpad palm-brush case)',
-        () async {
+        '(regression for the trackpad palm-brush case)', () async {
       await testNocterm(
         'spurious press during scroll is dropped before any dispatch',
         (tester) async {
@@ -318,6 +317,65 @@ void main() {
             isTrue,
             reason: 'Wheel events must still dispatch normally; got: '
                 '$observedEvents',
+          );
+        },
+      );
+    });
+
+    test(
+        'left motion without a confirmed press is treated as hover '
+        '(regression for Ghostty trackpad scroll)', () async {
+      await testNocterm(
+        'unpaired left motion during scroll does not start drag',
+        (tester) async {
+          final observedEvents = <MouseEvent>[];
+
+          await tester.pumpComponent(
+            Container(
+              width: 80,
+              height: 24,
+              child: MouseRegion(
+                onHover: (event) => observedEvents.add(event),
+                onEnter: (event) => observedEvents.add(event),
+                onExit: (event) => observedEvents.add(event),
+                opaque: true,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          );
+
+          await tester.sendMouseEvent(
+            const MouseEvent(
+              button: MouseButton.left,
+              x: 10,
+              y: 2,
+              pressed: true,
+              isMotion: true,
+            ),
+          );
+          await tester.pump();
+
+          expect(
+            observedEvents,
+            matcher.isNotEmpty,
+            reason: 'The motion should still be visible as hover movement',
+          );
+          expect(
+            observedEvents.any(
+              (e) =>
+                  e.button == MouseButton.left &&
+                  e.pressed &&
+                  e.isPrimaryButtonDown,
+            ),
+            isFalse,
+            reason: 'A left-motion event with no confirmed press must not '
+                'start a drag/selection gesture, got: $observedEvents',
+          );
+          expect(
+            observedEvents.last.pressed,
+            isFalse,
+            reason: 'The unpaired left-motion event should be downgraded to '
+                'an unpressed hover event',
           );
         },
       );

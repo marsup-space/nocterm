@@ -315,8 +315,7 @@ class RenderSelectionArea extends RenderMouseRegion {
         _isLeftButtonPressed = false;
       },
       onHover: (event) {
-        if (event.button == MouseButton.wheelUp ||
-            event.button == MouseButton.wheelDown) {
+        if (event.isWheel) {
           if (_isDragging || event.isPrimaryButtonDown) {
             _handlePointerMove(event);
             _schedulePostFrameSelectionUpdate(event);
@@ -629,8 +628,7 @@ class RenderSelectionArea extends RenderMouseRegion {
       return;
     }
 
-    if (event.button == MouseButton.wheelUp ||
-        event.button == MouseButton.wheelDown) {
+    if (event.isWheel) {
       if (event.isPrimaryButtonDown) {
         final clamped = _clampPointerPosition(
           Offset(event.x.toDouble(), event.y.toDouble()),

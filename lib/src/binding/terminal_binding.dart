@@ -848,8 +848,7 @@ class TerminalBinding extends NoctermBinding
     }
 
     // Handle wheel events for scrollable widgets
-    if (event.button == MouseButton.wheelUp ||
-        event.button == MouseButton.wheelDown) {
+    if (event.isWheel) {
       // Find the render object at the mouse position
       final renderObject = _findRenderObjectInTree(rootElement!);
       if (renderObject != null) {

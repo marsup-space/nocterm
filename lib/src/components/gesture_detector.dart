@@ -316,8 +316,7 @@ class _RenderGestureDetector extends RenderMouseRegion {
       },
       onHover: (event) {
         // Handle move events for gesture recognizers
-        if (event.button != MouseButton.wheelUp &&
-            event.button != MouseButton.wheelDown) {
+        if (!event.isWheel) {
           _onPointerMove(event);
         }
 

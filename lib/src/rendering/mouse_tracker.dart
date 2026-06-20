@@ -115,6 +115,20 @@ class MouseTracker {
   /// method will either flush the parked press (if the new event confirms
   /// it) or drop it (if not).
   void updateAnnotations(MouseHitTestResult hitTestResult, MouseEvent event) {
+    // A left-button motion event without a preceding confirmed press cannot be
+    // a real drag. Some macOS terminal/trackpad combinations can emit this
+    // shape while two-finger scrolling, and treating it as a drag starts text
+    // selection. Keep it as hover/move so hover UI still works.
+    if (event.button == MouseButton.left &&
+        event.pressed &&
+        event.isMotion &&
+        !_isLeftAlreadyPressed &&
+        !event.isPrimaryButtonDown &&
+        _pendingPress == null) {
+      _dispatchEvent(_asUnpressedMotion(event), hitTestResult);
+      return;
+    }
+
     // Park the very first left-button press of a new gesture. We do not
     // know yet whether it is a real click, the start of a drag, or a
     // spurious trackpad press during a scroll.
@@ -274,8 +288,7 @@ class MouseTracker {
   /// ignored — they neither add nor remove a pressed button, because the
   /// user is scrolling rather than holding a button.
   void _updatePressedButtons(MouseEvent event) {
-    if (event.button == MouseButton.wheelUp ||
-        event.button == MouseButton.wheelDown) {
+    if (event.isWheel) {
       return;
     }
 
@@ -294,7 +307,21 @@ class MouseTracker {
       y: event.y,
       pressed: event.pressed,
       isMotion: event.isMotion,
-      buttons: Set<MouseButton>.of(_pressedButtons),
+      buttons: {
+        ...event.buttons,
+        ..._pressedButtons,
+      },
+    );
+  }
+
+  MouseEvent _asUnpressedMotion(MouseEvent event) {
+    return MouseEvent(
+      button: event.button,
+      x: event.x,
+      y: event.y,
+      pressed: false,
+      isMotion: event.isMotion,
+      buttons: event.buttons,
     );
   }
 }

@@ -5,6 +5,8 @@ enum MouseButton {
   right,
   wheelUp,
   wheelDown,
+  wheelLeft,
+  wheelRight,
 }
 
 /// Mouse event for terminal interactions
@@ -29,6 +31,13 @@ class MouseEvent {
 
   /// Whether the primary (left) button is currently held down.
   bool get isPrimaryButtonDown => buttons.contains(MouseButton.left);
+
+  /// Whether this event came from a mouse wheel or trackpad scroll gesture.
+  bool get isWheel =>
+      button == MouseButton.wheelUp ||
+      button == MouseButton.wheelDown ||
+      button == MouseButton.wheelLeft ||
+      button == MouseButton.wheelRight;
 
   @override
   String toString() =>

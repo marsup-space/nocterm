@@ -45,13 +45,28 @@ class MouseParser {
       // In SGR mode:
       // Bits 0-1: button number (0=left, 1=middle, 2=right, 3=release/none)
       // Bit 5 (32): motion/drag flag
-      // Bit 6 (64): shift for wheel (64=up, 65=down)
+      // Bit 6 (64): wheel flag. Bits 2-4 may still carry modifiers
+      // (shift/alt/ctrl), so wheel codes are not limited to 64 and 65.
 
-      // Check for wheel events first (64 and 65)
-      if (buttonCode == 64) {
-        button = MouseButton.wheelUp;
-      } else if (buttonCode == 65) {
-        button = MouseButton.wheelDown;
+      // Check for wheel events first. A modified wheel-up can be 68
+      // (64 + shift), for example; treating that as left press starts
+      // bogus drag/selection gestures on trackpads.
+      final isWheel = (buttonCode & 0x40) != 0;
+      if (isWheel) {
+        switch (buttonCode & 0x3) {
+          case 0:
+            button = MouseButton.wheelUp;
+            break;
+          case 1:
+            button = MouseButton.wheelDown;
+            break;
+          case 2:
+            button = MouseButton.wheelLeft;
+            break;
+          case 3:
+            button = MouseButton.wheelRight;
+            break;
+        }
       } else {
         // Handle motion and button events
         final baseButton = buttonCode & 0x3;
@@ -85,7 +100,8 @@ class MouseParser {
         return null;
       }
 
-      final isMotionEvent = (buttonCode & 0x20) != 0; // Bit 5 indicates motion
+      final isMotionEvent =
+          !isWheel && (buttonCode & 0x20) != 0; // Bit 5 indicates motion
 
       // SGR motion with baseButton=3 indicates hover (no buttons pressed).
       if (isMotionEvent && (buttonCode & 0x3) == 3) {
@@ -136,10 +152,19 @@ class MouseParser {
 
     if (wheelFlag != 0) {
       // Wheel events (always "pressed")
-      if (buttonNum == 0) {
-        button = MouseButton.wheelUp;
-      } else if (buttonNum == 1) {
-        button = MouseButton.wheelDown;
+      switch (buttonNum) {
+        case 0:
+          button = MouseButton.wheelUp;
+          break;
+        case 1:
+          button = MouseButton.wheelDown;
+          break;
+        case 2:
+          button = MouseButton.wheelLeft;
+          break;
+        case 3:
+          button = MouseButton.wheelRight;
+          break;
       }
     } else {
       // Regular buttons

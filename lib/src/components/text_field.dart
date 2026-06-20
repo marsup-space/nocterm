@@ -1559,8 +1559,7 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
         _isLeftButtonPressed = false;
       },
       onHover: (event) {
-        if (event.button == MouseButton.wheelUp ||
-            event.button == MouseButton.wheelDown) {
+        if (event.isWheel) {
           return;
         }
 
