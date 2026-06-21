@@ -797,8 +797,6 @@ class _HintOverlayState extends State<HintOverlay> {
       return clampedPreferred;
     }
 
-    final clampedOpposite =
-        clampToBounds(oppositePos, tooltipSize, stackSize);
     // Give up; let the Stack clip
     return preferred;
   }
