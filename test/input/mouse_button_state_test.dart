@@ -215,16 +215,28 @@ void main() {
           // the debounced watchdog timer must NOT clear it.
           await Future<void>.delayed(const Duration(milliseconds: 250));
 
-          // Now send a wheel event. This triggers the synchronous
-          // stale-press check, which must leave the confirmed press
-          // untouched. The enriched `buttons` field on the event the
-          // MouseRegion sees is the ground truth for the tracker's state.
+          // Send a wheel event. This triggers the synchronous stale-press
+          // check, which must leave the confirmed press untouched.
           await tester.sendMouseEvent(
             const MouseEvent(
               button: MouseButton.wheelUp,
               x: 12,
               y: 2,
               pressed: true,
+            ),
+          );
+
+          // Wheel events are intentionally NOT enriched with pressed-button
+          // state (see MouseTracker._eventWithButtons), so we can't use a
+          // wheel event to verify the tracker's button state. Instead, send
+          // a hover-motion event and check its enriched `buttons` field.
+          await tester.sendMouseEvent(
+            const MouseEvent(
+              button: MouseButton.left,
+              x: 13,
+              y: 2,
+              pressed: true,
+              isMotion: true,
             ),
           );
 
@@ -240,7 +252,7 @@ void main() {
             observedButtons.last,
             contains(MouseButton.left),
             reason: 'Confirmed press (real drag) must survive the '
-                'stale-press watchdog; the wheel event should be enriched '
+                'stale-press watchdog; the motion event should be enriched '
                 'with `buttons: {left}`, got: $observedButtons',
           );
         },

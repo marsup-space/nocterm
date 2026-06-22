@@ -222,6 +222,19 @@ class RenderScrollbar extends RenderObject
       },
       onHover: (event) {
         if (_controller == null || !thumbVisibility) return;
+
+        // Wheel events don't carry button state (MouseTracker intentionally
+        // does not enrich them with _pressedButtons). If a drag is stuck
+        // because a release event was lost (e.g. a brief UI freeze dropped
+        // the mouse-up), a subsequent wheel event gives us a reliable signal
+        // that the user is scrolling, not dragging — release the drag and
+        // restore mouse capture to normal.
+        if (event.isWheel && _isDragging) {
+          _isLeftButtonPressed = false;
+          _setDragging(false);
+          return;
+        }
+
         if (event.button == MouseButton.left || event.isPrimaryButtonDown) {
           final leftDown = event.pressed || event.isPrimaryButtonDown;
           if (leftDown && !_isLeftButtonPressed) {

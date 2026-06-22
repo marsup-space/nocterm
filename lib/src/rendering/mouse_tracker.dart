@@ -300,7 +300,21 @@ class MouseTracker {
   }
 
   /// Return a copy of [event] enriched with the current pressed-buttons set.
+  ///
+  /// Wheel events are **not** enriched. A stuck left button (e.g. from a
+  /// spurious trackpad press that was confirmed but never released) would
+  /// otherwise cause every wheel event to carry `isPrimaryButtonDown = true`,
+  /// which triggers unwanted drag/selection in widgets like [SelectionArea]
+  /// and [Scrollbar] that branch on that flag inside their `onHover`.
+  ///
+  /// Widgets that need to know whether the left button is held *during* an
+  /// active drag should track their own `_isDragging` state (set on real
+  /// pointer-down, cleared on pointer-up) rather than relying on
+  /// `isPrimaryButtonDown` for wheel events.
   MouseEvent _eventWithButtons(MouseEvent event) {
+    if (event.isWheel) {
+      return event;
+    }
     return MouseEvent(
       button: event.button,
       x: event.x,

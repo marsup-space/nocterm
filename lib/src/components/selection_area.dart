@@ -316,7 +316,13 @@ class RenderSelectionArea extends RenderMouseRegion {
       },
       onHover: (event) {
         if (event.isWheel) {
-          if (_isDragging || event.isPrimaryButtonDown) {
+          // Only extend an *active* drag — never start one from a wheel
+          // event.  Previously this also checked `event.isPrimaryButtonDown`,
+          // but a stuck left button in MouseTracker._pressedButtons (e.g.
+          // from a spurious trackpad press that was confirmed but never
+          // released) would cause every wheel event to look like a drag,
+          // selecting text as the user scrolls.
+          if (_isDragging) {
             _handlePointerMove(event);
             _schedulePostFrameSelectionUpdate(event);
           }
@@ -629,13 +635,15 @@ class RenderSelectionArea extends RenderMouseRegion {
     }
 
     if (event.isWheel) {
-      if (event.isPrimaryButtonDown) {
-        final clamped = _clampPointerPosition(
-          Offset(event.x.toDouble(), event.y.toDouble()),
-        );
-        _updateDragSelectionAt(clamped);
-        _schedulePostFrameSelectionUpdate(event);
-      }
+      // _handleExternalMouseEvent is only subscribed while _isDragging
+      // (see _startExternalDragTracking), so we can rely on that flag
+      // instead of isPrimaryButtonDown, which is unreliable for wheel
+      // events when a button is stuck in MouseTracker._pressedButtons.
+      final clamped = _clampPointerPosition(
+        Offset(event.x.toDouble(), event.y.toDouble()),
+      );
+      _updateDragSelectionAt(clamped);
+      _schedulePostFrameSelectionUpdate(event);
       return;
     }
 
