@@ -214,6 +214,7 @@ class TerminalBinding extends NoctermBinding
   Stream<KeyboardEvent> get keyboardEvents => _keyboardEventController.stream;
 
   /// Stream of parsed mouse events
+  @override
   Stream<MouseEvent> get mouseEvents => _mouseEventController.stream;
 
   /// Stream of OSC responses captured from the terminal
