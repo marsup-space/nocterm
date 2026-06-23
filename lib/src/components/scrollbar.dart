@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:meta/meta.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
 import 'package:nocterm/src/rendering/mouse_hit_test.dart';
@@ -163,6 +164,14 @@ class RenderScrollbar extends RenderObject
     _annotation?.capturing = value;
   }
 
+  @protected
+  void releaseMouseCapture() {
+    _isLeftButtonPressed = false;
+    _setDragging(false);
+    _annotation?.capturing = false;
+    markNeedsPaint();
+  }
+
   Offset _paintOffset = Offset.zero;
 
   /// The minimum thumb height, capped by the available track height.
@@ -230,8 +239,7 @@ class RenderScrollbar extends RenderObject
         // that the user is scrolling, not dragging — release the drag and
         // restore mouse capture to normal.
         if (event.isWheel && _isDragging) {
-          _isLeftButtonPressed = false;
-          _setDragging(false);
+          releaseMouseCapture();
           return;
         }
 
@@ -243,8 +251,7 @@ class RenderScrollbar extends RenderObject
           } else if (leftDown && _isDragging) {
             _handleDragMove(event);
           } else if (!leftDown && _isLeftButtonPressed) {
-            _isLeftButtonPressed = false;
-            _setDragging(false);
+            releaseMouseCapture();
           }
         }
       },

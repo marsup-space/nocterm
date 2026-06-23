@@ -74,6 +74,9 @@ abstract class NoctermBinding {
     _instance = null;
   }
 
+  /// Stream of parsed mouse events before they are routed through the tree.
+  Stream<MouseEvent> get mouseEvents => const Stream<MouseEvent>.empty();
+
   BuildOwner? _buildOwner;
   BuildOwner get buildOwner => _buildOwner ??= createBuildOwner();
 

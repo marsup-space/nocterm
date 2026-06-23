@@ -9,6 +9,7 @@ import 'package:nocterm/src/focus/focus_manager.dart';
 import 'package:nocterm/src/foundation/persistent_hash_map.dart';
 import 'package:nocterm/src/foundation/nocterm_error.dart';
 import 'package:nocterm/src/foundation/layout_profiler.dart';
+import 'package:nocterm/src/keyboard/mouse_event.dart';
 import 'package:nocterm/src/rectangle.dart';
 import 'package:nocterm/src/rendering/debug.dart';
 import 'package:nocterm/src/size.dart';

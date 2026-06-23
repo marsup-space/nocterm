@@ -40,6 +40,13 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
   /// Stream controller for simulating keyboard events
   final _testKeyboardController = StreamController<KeyboardEvent>.broadcast();
 
+  /// Stream controller for simulating mouse events
+  final _testMouseController = StreamController<MouseEvent>.broadcast();
+
+  /// Stream of parsed mouse events
+  @override
+  Stream<MouseEvent> get mouseEvents => _testMouseController.stream;
+
   /// Queue of pending keyboard events to be processed
   final _pendingKeyboardEvents = <KeyboardEvent>[];
 
@@ -68,6 +75,7 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
     // Process any pending mouse events
     while (_pendingMouseEvents.isNotEmpty) {
       final event = _pendingMouseEvents.removeAt(0);
+      _testMouseController.add(event);
       _routeMouseEvent(event);
     }
 
@@ -197,6 +205,7 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
   void shutdown() {
     scheduler.cancelAll();
     _testKeyboardController.close();
+    _testMouseController.close();
     // Clear the singleton instance to allow multiple tests
     NoctermBinding.resetInstance();
     _instance = null;
