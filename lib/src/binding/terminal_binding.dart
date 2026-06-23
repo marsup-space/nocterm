@@ -217,6 +217,11 @@ class TerminalBinding extends NoctermBinding
   @override
   Stream<MouseEvent> get mouseEvents => _mouseEventController.stream;
 
+  @override
+  void resetMouseTracking() {
+    _mouseTracker.reset();
+  }
+
   /// Stream of OSC responses captured from the terminal
   Stream<String> get oscEvents => _oscEventsController.stream;
 

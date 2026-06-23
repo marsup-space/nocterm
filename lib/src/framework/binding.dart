@@ -77,6 +77,12 @@ abstract class NoctermBinding {
   /// Stream of parsed mouse events before they are routed through the tree.
   Stream<MouseEvent> get mouseEvents => const Stream<MouseEvent>.empty();
 
+  /// Forget current mouse hover/capture/button state.
+  ///
+  /// Modal overlays call this while closing so stale annotations from the
+  /// removed subtree cannot keep intercepting later mouse events.
+  void resetMouseTracking() {}
+
   BuildOwner? _buildOwner;
   BuildOwner get buildOwner => _buildOwner ??= createBuildOwner();
 

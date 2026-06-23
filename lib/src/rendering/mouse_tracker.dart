@@ -277,6 +277,19 @@ class MouseTracker {
     _dropPendingPress();
   }
 
+  /// Forget all mouse hover/capture/button bookkeeping without invoking
+  /// callbacks.
+  ///
+  /// Modal overlays can remove an entire subtree while the cursor is still
+  /// logically inside it. In that case there is no meaningful target to send
+  /// an exit callback to; the important part is that stale modal annotations
+  /// and pressed-button state do not affect the next mouse event.
+  void reset() {
+    _hoveredAnnotations.clear();
+    _pressedButtons.clear();
+    _dropPendingPress();
+  }
+
   void _dropPendingPress() {
     _pendingPress = null;
     _pendingPressHitTest = null;

@@ -47,6 +47,11 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
   @override
   Stream<MouseEvent> get mouseEvents => _testMouseController.stream;
 
+  @override
+  void resetMouseTracking() {
+    _mouseTracker.reset();
+  }
+
   /// Queue of pending keyboard events to be processed
   final _pendingKeyboardEvents = <KeyboardEvent>[];
 
