@@ -323,4 +323,154 @@ void main() {
       });
     });
   });
+
+  // macOS binds Ctrl+< / Ctrl+> to Mission Control, so the user can't use
+  // Ctrl+Arrow for word movement there. Option+Arrow (Alt+Arrow) is the
+  // macOS-native equivalent and must produce the same behavior.
+  group('Alt+Arrow word navigation (macOS Option+Arrow)', () {
+    test('moves cursor by word backward with provider', () async {
+      await testNocterm('alt+left with provider', (tester) async {
+        final controller = TextEditingController(text: 'hello world');
+
+        await tester.pumpComponent(
+          Container(
+            width: 30,
+            height: 5,
+            child: TextField(
+              controller: controller,
+              focused: true,
+              wordBoundaryProvider: testWordBoundaryProvider,
+            ),
+          ),
+        );
+
+        expect(controller.selection.extentOffset, equals(11));
+
+        await tester.sendKeyEvent(KeyboardEvent(
+          logicalKey: LogicalKey.arrowLeft,
+          modifiers: ModifierKeys(alt: true),
+        ));
+
+        expect(controller.selection.extentOffset, equals(6));
+      });
+    });
+
+    test('moves cursor by word forward with provider', () async {
+      await testNocterm('alt+right with provider', (tester) async {
+        final controller = TextEditingController(text: 'hello world');
+
+        await tester.pumpComponent(
+          Container(
+            width: 30,
+            height: 5,
+            child: TextField(
+              controller: controller,
+              focused: true,
+              wordBoundaryProvider: testWordBoundaryProvider,
+            ),
+          ),
+        );
+
+        for (int i = 0; i < 11; i++) {
+          await tester.sendKey(LogicalKey.arrowLeft);
+        }
+        expect(controller.selection.extentOffset, equals(0));
+
+        await tester.sendKeyEvent(KeyboardEvent(
+          logicalKey: LogicalKey.arrowRight,
+          modifiers: ModifierKeys(alt: true),
+        ));
+
+        expect(controller.selection.extentOffset, equals(6));
+      });
+    });
+
+    test('moves cursor by word backward with default boundary', () async {
+      await testNocterm('alt+left default', (tester) async {
+        final controller = TextEditingController(text: 'hello world');
+
+        await tester.pumpComponent(
+          Container(
+            width: 30,
+            height: 5,
+            child: TextField(
+              controller: controller,
+              focused: true,
+            ),
+          ),
+        );
+
+        expect(controller.selection.extentOffset, equals(11));
+
+        await tester.sendKeyEvent(KeyboardEvent(
+          logicalKey: LogicalKey.arrowLeft,
+          modifiers: ModifierKeys(alt: true),
+        ));
+
+        expect(controller.selection.extentOffset, equals(6));
+      });
+    });
+
+    test('Shift+Alt+Arrow extends selection by word', () async {
+      await testNocterm('shift+alt+left extends selection', (tester) async {
+        final controller = TextEditingController(text: 'hello world');
+
+        await tester.pumpComponent(
+          Container(
+            width: 30,
+            height: 5,
+            child: TextField(
+              controller: controller,
+              focused: true,
+              wordBoundaryProvider: testWordBoundaryProvider,
+            ),
+          ),
+        );
+
+        expect(controller.selection.extentOffset, equals(11));
+        expect(controller.selection.isCollapsed, isTrue);
+
+        await tester.sendKeyEvent(KeyboardEvent(
+          logicalKey: LogicalKey.arrowLeft,
+          modifiers: ModifierKeys(alt: true, shift: true),
+        ));
+
+        // Selection should now span from after "hello " (offset 6) to
+        // the original cursor position (offset 11).
+        expect(controller.selection.isCollapsed, isFalse);
+        expect(controller.selection.baseOffset, equals(11));
+        expect(controller.selection.extentOffset, equals(6));
+      });
+    });
+
+    test('plain Shift+Arrow still extends by character', () async {
+      // Regression guard: the new word-move branches must not swallow
+      // plain Shift+Arrow (no Ctrl, no Alt).
+      await testNocterm('shift+left extends by one char', (tester) async {
+        final controller = TextEditingController(text: 'hello world');
+
+        await tester.pumpComponent(
+          Container(
+            width: 30,
+            height: 5,
+            child: TextField(
+              controller: controller,
+              focused: true,
+              wordBoundaryProvider: testWordBoundaryProvider,
+            ),
+          ),
+        );
+
+        expect(controller.selection.extentOffset, equals(11));
+
+        await tester.sendKeyEvent(KeyboardEvent(
+          logicalKey: LogicalKey.arrowLeft,
+          modifiers: ModifierKeys(shift: true),
+        ));
+
+        expect(controller.selection.isCollapsed, isFalse);
+        expect(controller.selection.extentOffset, equals(10));
+      });
+    });
+  });
 }

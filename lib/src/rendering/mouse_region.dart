@@ -59,6 +59,13 @@ class RenderMouseRegion extends RenderObject
   MouseTrackerAnnotation? get annotation => _annotation;
 
   void _updateAnnotation() {
+    // Dirty the old annotation before replacing it — a call to
+    // updateRenderObject (setter-based callback changes) or an
+    // attach/detach cycle for a different render object both
+    // create new annotations; the MouseTracker needs to know the
+    // old one is stale so it can fire a synthetic onEnter on the
+    // new one at the end of the frame.
+    _annotation?.validForMouseTracker = false;
     if (_onEnter != null || _onExit != null || _onHover != null) {
       _annotation = MouseTrackerAnnotation(
         onEnter: _onEnter,

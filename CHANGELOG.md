@@ -1,3 +1,10 @@
+# Unreleased
+
+## Bug Fixes
+- **TextField word navigation**: `Alt+Arrow` (Option+Arrow on macOS) now moves the cursor by word, matching the existing `Ctrl+Arrow` binding. macOS users couldn't use `Ctrl+Arrow` because `Ctrl+<` / `Ctrl+>` are bound to Mission Control; accepting both modifiers keeps word movement working identically across platforms. `Shift+Alt+Arrow` extends the selection by a word. Plain `Shift+Arrow` still extends by a character.
+
+---
+
 # 0.7.0
 
 ## Layout pipeline

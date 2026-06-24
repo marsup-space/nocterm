@@ -935,6 +935,13 @@ abstract class RenderObjectElement extends Element {
       _ancestorRenderObjectElement!.removeRenderObjectChild(renderObject, slot);
       _ancestorRenderObjectElement = null;
     }
+    // When the parent is not a RenderObjectElement (e.g. a
+    // StatefulElement wrapping a MouseRegion), the render object
+    // was never inserted into a parent render-object child list,
+    // so removeRenderObjectChild never runs — but we still need
+    // to invoke detach() so that RenderMouseRegion can mark its
+    // annotation invalid for the MouseTracker.
+    _renderObject?.detach();
     super.detachRenderObject();
   }
 

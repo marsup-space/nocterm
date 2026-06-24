@@ -878,6 +878,41 @@ class TerminalBinding extends NoctermBinding
     }
   }
 
+  /// After [drawFrame] finalised the tree, some
+  /// [RenderMouseRegion]s may have been replaced — the old
+  /// region's annotation was marked invalid and a fresh one
+  /// (with new callbacks) was attached. If the cursor is sitting
+  /// over the new region's bounds, it should get a synthetic
+  /// [onEnter] immediately rather than waiting for the next real
+  /// mouse event.
+  ///
+  /// This is a no-op when the cursor has never been reported or
+  /// no annotation was dirtied.
+  void _syntheticMouseDispatchAfterFrame() {
+    if (!_mouseTracker.hasDirtyAnnotations) return;
+    final lastPos = _mouseTracker.lastMousePosition;
+    if (lastPos == null) return;
+
+    final renderObject = _findRenderObjectInTree(rootElement!);
+    if (renderObject == null) return;
+
+    final hitTestResult = MouseHitTestResult();
+    renderObject.hitTest(hitTestResult, position: lastPos);
+
+    final syntheticEvent = MouseEvent(
+      button: MouseButton.left,
+      x: lastPos.dx.round(),
+      y: lastPos.dy.round(),
+      pressed: false,
+      isMotion: true,
+    );
+    _mouseTracker.updateAnnotations(
+      hitTestResult,
+      syntheticEvent,
+      skipHover: true,
+    );
+  }
+
   /// Find the render object in the element tree
   RenderObject? _findRenderObjectInTree(Element element) {
     if (element is RenderObjectElement) {
@@ -1550,6 +1585,11 @@ class TerminalBinding extends NoctermBinding
 
       // Flush layout pipeline
       pipelineOwner.flushLayout();
+
+      // Synthetic mouse dispatch: after layout, the new
+      // RenderMouseRegions have their sizes, so hit tests work.
+      _syntheticMouseDispatchAfterFrame();
+
       NoctermTimeline.finishSync(); // Layout
 
       t3 = DateTime.now().microsecondsSinceEpoch;

@@ -451,17 +451,34 @@ class _TextFieldState extends State<TextField> {
     } else if (key == LogicalKey.delete) {
       _handleDelete();
       return true;
-    } else if (key == LogicalKey.arrowLeft && event.isShiftPressed) {
+    } else if (key == LogicalKey.arrowLeft &&
+        event.isShiftPressed &&
+        !event.isControlPressed &&
+        !event.isAltPressed) {
+      // Plain Shift+Arrow extends the selection by a single character.
+      // Shift combined with Ctrl/Alt is handled by the word-move branches
+      // below (Shift extends the word selection).
       _moveCursor(-1, true);
       return true;
-    } else if (key == LogicalKey.arrowRight && event.isShiftPressed) {
+    } else if (key == LogicalKey.arrowRight &&
+        event.isShiftPressed &&
+        !event.isControlPressed &&
+        !event.isAltPressed) {
       _moveCursor(1, true);
       return true;
-    } else if (key == LogicalKey.arrowLeft && event.isControlPressed) {
-      _moveCursorByWord(-1, false);
+    } else if (key == LogicalKey.arrowLeft &&
+        (event.isControlPressed || event.isAltPressed)) {
+      // Word-level left. Ctrl+Arrow is the Linux/Windows readline
+      // convention; Alt+Arrow (Option+Arrow on macOS) is the macOS
+      // convention — Ctrl+< / Ctrl+> are bound to Mission Control
+      // there, so the user can't use them. Accepting both keeps the
+      // binding identical across platforms. Shift extends the
+      // selection by a word.
+      _moveCursorByWord(-1, event.isShiftPressed);
       return true;
-    } else if (key == LogicalKey.arrowRight && event.isControlPressed) {
-      _moveCursorByWord(1, false);
+    } else if (key == LogicalKey.arrowRight &&
+        (event.isControlPressed || event.isAltPressed)) {
+      _moveCursorByWord(1, event.isShiftPressed);
       return true;
     } else if (key == LogicalKey.arrowUp &&
         event.isShiftPressed &&

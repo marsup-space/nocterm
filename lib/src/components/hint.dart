@@ -339,6 +339,18 @@ class HintController implements Listenable {
 mixin HintStateMixin<T extends StatefulComponent> on State<T> {
   Object? _requestIdInstance;
 
+  /// The most recent mouse event that drove an [onHintEnter] or
+  /// [onHintHover] callback, or `null` if the cursor is not currently
+  /// inside the hinted region. The state writes this on every
+  /// update so [refreshHintFromLastEvent] can re-show the tooltip
+  /// with up-to-date content at the cursor's last known position
+  /// after the host component rebuilds.
+  ///
+  /// Cleared on [onHintExit] and [dispose] so a stale event from
+  /// before the cursor left the region can't re-pop the tooltip
+  /// on the next rebuild.
+  MouseEvent? _lastMouseEvent;
+
   /// Lazily-created opaque identifier used to associate this state's
   /// hint with the [HintController]. Stable across the lifetime of
   /// the state so that successive mouse moves count as updates to the
@@ -433,6 +445,7 @@ mixin HintStateMixin<T extends StatefulComponent> on State<T> {
   /// hides the hint. Override to perform additional cleanup, then
   /// call `super.onHintExit(event)` to dismiss the hint.
   void onHintExit(MouseEvent event) {
+    _lastMouseEvent = null;
     HintController.instance.hide(requestId: _requestId);
   }
 
@@ -456,11 +469,36 @@ mixin HintStateMixin<T extends StatefulComponent> on State<T> {
   /// stay painted on top of the new content forever.
   @override
   void dispose() {
+    _lastMouseEvent = null;
     HintController.instance.hide(requestId: _requestId);
     super.dispose();
   }
 
+  /// Re-show the hint using the most recently recorded mouse event,
+  /// if the cursor is still inside the hinted region.
+  ///
+  /// The mixin's mouse wiring only refreshes the tooltip on
+  /// [onHintEnter] / [onHintHover] — i.e. when the user moves the
+  /// mouse. A host component that rebuilds with new [hintContent]
+  /// while the cursor is stationary would otherwise keep the old
+  /// tooltip text painted on screen until the next mouse move. This
+  /// matters for wrapper-style hints like [Hinted] whose content
+  /// comes from a constructor prop and changes via
+  /// [State.didUpdateComponent] instead of via internal state.
+  ///
+  /// Call this from `didUpdateComponent` (or any other rebuild
+  /// hook) on a state that owns dynamic hint text. The helper is
+  /// a no-op when the cursor is not currently over the source, so
+  /// it's safe to call unconditionally.
+  void refreshHintFromLastEvent() {
+    final lastEvent = _lastMouseEvent;
+    if (lastEvent != null) {
+      _updateHint(lastEvent);
+    }
+  }
+
   void _updateHint(MouseEvent event) {
+    _lastMouseEvent = event;
     if (hintEnabled) {
       HintController.instance.show(
         hintContent!,
@@ -864,6 +902,22 @@ class _HintedState extends State<Hinted> with HintStateMixin<Hinted> {
 
   @override
   Color? get hintColor => component.color;
+
+  @override
+  void didUpdateComponent(covariant Hinted oldComponent) {
+    super.didUpdateComponent(oldComponent);
+    // [Hinted.hint] is a prop on the host component, so the only
+    // way it changes is via a rebuild. The mixin's mouse wiring
+    // refreshes the tooltip on enter/hover, not on prop changes,
+    // so a stationary cursor would otherwise see the previous
+    // hint text painted on screen until the next mouse move. This
+    // matters in the toolbar: hovering the model picker shows
+    // "click to change", submitting flips the surrounding state
+    // to streaming, the host rebuilds [Hinted] with "cannot be
+    // changed ..." — without this hook the tooltip would stay
+    // stuck on the old text.
+    refreshHintFromLastEvent();
+  }
 
   @override
   Component build(BuildContext context) => buildWithHint(component.child);

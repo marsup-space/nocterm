@@ -71,6 +71,29 @@ class MouseTracker {
   /// The set of annotations currently under the mouse cursor.
   final Set<MouseTrackerAnnotation> _hoveredAnnotations = {};
 
+  /// The last cell position the mouse was reported at, in the same
+  /// coordinate system as [MouseEvent.x] / [MouseEvent.y] (root
+  /// cell coordinates — i.e. the terminal frame, not a particular
+  /// overlay's local frame). Updated on every [_dispatchEvent]
+  /// call. Read by [NoctermBinding] when it does a synthetic
+  /// re-dispatch at the end of [NoctermBinding.drawFrame] so that
+  /// newly attached [MouseTrackerAnnotation]s whose region the
+  /// cursor is sitting over get a synthetic [onEnter] without
+  /// waiting for the next real mouse event.
+  Offset? _lastMousePosition;
+
+  /// The last reported mouse position, or `null` if no mouse event
+  /// has been routed through the tracker yet. See [_lastMousePosition].
+  Offset? get lastMousePosition => _lastMousePosition;
+
+  /// Whether any currently tracked annotation has been marked
+  /// invalid since the last dispatch — i.e. the render object it
+  /// points at was detached from the tree. Used by the binding to
+  /// decide whether a synthetic re-dispatch is needed at the end
+  /// of a frame.
+  bool get hasDirtyAnnotations =>
+      _hoveredAnnotations.any((a) => !a.validForMouseTracker);
+
   /// The set of mouse buttons currently held down.
   ///
   /// Only contains buttons whose press has been confirmed and dispatched.
@@ -114,7 +137,19 @@ class MouseTracker {
   /// the event is *parked* instead of dispatched. The next call to this
   /// method will either flush the parked press (if the new event confirms
   /// it) or drop it (if not).
-  void updateAnnotations(MouseHitTestResult hitTestResult, MouseEvent event) {
+  ///
+  /// If [skipHover] is `true`, the [MouseTrackerAnnotation.onHover]
+  /// callbacks are not fired. This is the synthetic path used by
+  /// the binding to re-evaluate which annotations are under the
+  /// cursor at the end of a frame (so newly attached annotations
+  /// whose region the cursor sits over get a synthetic enter) —
+  /// the cursor didn't actually move, so re-firing hover on every
+  /// still-hovered annotation would be wasted work.
+  void updateAnnotations(
+    MouseHitTestResult hitTestResult,
+    MouseEvent event, {
+    bool skipHover = false,
+  }) {
     // A left-button motion event without a preceding confirmed press cannot be
     // a real drag. Some macOS terminal/trackpad combinations can emit this
     // shape while two-finger scrolling, and treating it as a drag starts text
@@ -125,14 +160,16 @@ class MouseTracker {
         !_isLeftAlreadyPressed &&
         !event.isPrimaryButtonDown &&
         _pendingPress == null) {
-      _dispatchEvent(_asUnpressedMotion(event), hitTestResult);
+      _dispatchEvent(_asUnpressedMotion(event), hitTestResult, skipHover: skipHover);
       return;
     }
 
     // Park the very first left-button press of a new gesture. We do not
     // know yet whether it is a real click, the start of a drag, or a
-    // spurious trackpad press during a scroll.
-    if (event.button == MouseButton.left &&
+    // spurious trackpad press during a scroll. Skip on the synthetic
+    // path — there's no real press to park.
+    if (!skipHover &&
+        event.button == MouseButton.left &&
         event.pressed &&
         !_isLeftAlreadyPressed &&
         _pendingPress == null) {
@@ -156,13 +193,13 @@ class MouseTracker {
         // Dispatch the parked press first (so downstream widgets see a
         // press → release / press → motion sequence), then fall through
         // to dispatch the current event.
-        _dispatchEvent(pending, pendingHitTest);
+        _dispatchEvent(pending, pendingHitTest, skipHover: skipHover);
       }
       // Otherwise the press is silently dropped: the next event was a
       // wheel or other non-confirming signal, so the press was spurious.
     }
 
-    _dispatchEvent(event, hitTestResult);
+    _dispatchEvent(event, hitTestResult, skipHover: skipHover);
   }
 
   /// Whether the parked press at [pending] is confirmed by the arrival of
@@ -198,7 +235,20 @@ class MouseTracker {
 
   /// Dispatch [event] to the annotations under the cursor (per
   /// [hitTestResult]), updating tracker state along the way.
-  void _dispatchEvent(MouseEvent event, MouseHitTestResult hitTestResult) {
+  ///
+  /// If [skipHover] is `true`, [MouseTrackerAnnotation.onHover]
+  /// callbacks are not fired. The synthetic path uses this at
+  /// the end of a frame to re-evaluate which annotations are
+  /// under a stationary cursor — newly attached annotations get
+  /// a synthetic [onEnter], but every still-hovered annotation
+  /// already knows the cursor is there and doesn't need a
+  /// redundant [onHover].
+  void _dispatchEvent(
+    MouseEvent event,
+    MouseHitTestResult hitTestResult, {
+    bool skipHover = false,
+  }) {
+    _lastMousePosition = Offset(event.x.toDouble(), event.y.toDouble());
     _updatePressedButtons(event);
     final effectiveEvent = _eventWithButtons(event);
     _hoveredAnnotations.removeWhere((a) => !a.validForMouseTracker);
@@ -253,10 +303,16 @@ class MouseTracker {
       }
     }
 
-    // Dispatch hover events to all currently hovered annotations
-    for (final annotation in newAnnotations) {
-      if (annotation.validForMouseTracker) {
-        annotation.onHover?.call(effectiveEvent);
+    // Dispatch hover events to all currently hovered annotations.
+    // Skip on the synthetic path — the cursor didn't move, so
+    // every still-hovered annotation already knows it's hovered
+    // and re-firing would be wasted work (and may cause unwanted
+    // side effects, e.g. scrollbar re-showing its tooltip).
+    if (!skipHover) {
+      for (final annotation in newAnnotations) {
+        if (annotation.validForMouseTracker) {
+          annotation.onHover?.call(effectiveEvent);
+        }
       }
     }
 
