@@ -182,22 +182,30 @@ class MouseTracker {
     }
 
     // A new event arrived — see if it confirms the parked press.
-    final pending = _pendingPress;
-    if (pending != null) {
-      final pendingHitTest = _pendingPressHitTest!;
-      _pendingPress = null;
-      _pendingPressHitTest = null;
-      _pendingPressTimer?.cancel();
-      _pendingPressTimer = null;
+    // Skip on the synthetic path: a synthetic event must never
+    // confirm/consume a parked real press, because (a) the
+    // synthetic event's `pressed: false` would be misread as a
+    // release, completing a tap gesture that the user never
+    // finished, and (b) the callbacks dispatched here may fire
+    // before the component tree is fully ready after a rebuild.
+    if (!synthetic) {
+      final pending = _pendingPress;
+      if (pending != null) {
+        final pendingHitTest = _pendingPressHitTest!;
+        _pendingPress = null;
+        _pendingPressHitTest = null;
+        _pendingPressTimer?.cancel();
+        _pendingPressTimer = null;
 
-      if (_pendingPressIsConfirmed(pending, event)) {
-        // Dispatch the parked press first (so downstream widgets see a
-        // press → release / press → motion sequence), then fall through
-        // to dispatch the current event.
-        _dispatchEvent(pending, pendingHitTest, skipHover: skipHover, synthetic: synthetic);
+        if (_pendingPressIsConfirmed(pending, event)) {
+          // Dispatch the parked press first (so downstream widgets see a
+          // press → release / press → motion sequence), then fall through
+          // to dispatch the current event.
+          _dispatchEvent(pending, pendingHitTest, skipHover: skipHover);
+        }
+        // Otherwise the press is silently dropped: the next event was a
+        // wheel or other non-confirming signal, so the press was spurious.
       }
-      // Otherwise the press is silently dropped: the next event was a
-      // wheel or other non-confirming signal, so the press was spurious.
     }
 
     _dispatchEvent(event, hitTestResult, skipHover: skipHover, synthetic: synthetic);
