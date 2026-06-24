@@ -94,6 +94,15 @@ class MouseTracker {
   bool get hasDirtyAnnotations =>
       _hoveredAnnotations.any((a) => !a.validForMouseTracker);
 
+  /// Whether any mouse button is currently held down (per the
+  /// tracker's confirmed-press bookkeeping). Read by the binding
+  /// when it creates a synthetic event so the event's `pressed`
+  /// flag reflects reality — a synthetic `pressed: false` would
+  /// otherwise reset [GestureDetector]'s `_isLeftButtonPressed`
+  /// between the real press and release, silently breaking tap
+  /// detection.
+  bool get isAnyButtonPressed => _pressedButtons.isNotEmpty;
+
   /// The set of mouse buttons currently held down.
   ///
   /// Only contains buttons whose press has been confirmed and dispatched.

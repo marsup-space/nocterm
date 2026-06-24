@@ -899,12 +899,14 @@ class TerminalBinding extends NoctermBinding
     final hitTestResult = MouseHitTestResult();
     renderObject.hitTest(hitTestResult, position: lastPos);
 
+    final leftDown = _mouseTracker.isAnyButtonPressed;
     final syntheticEvent = MouseEvent(
       button: MouseButton.left,
       x: lastPos.dx.round(),
       y: lastPos.dy.round(),
-      pressed: false,
+      pressed: leftDown,
       isMotion: true,
+      buttons: leftDown ? {MouseButton.left} : {},
     );
     _mouseTracker.updateAnnotations(
       hitTestResult,
