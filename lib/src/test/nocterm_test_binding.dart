@@ -337,6 +337,7 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
       hitTestResult,
       syntheticEvent,
       skipHover: true,
+      synthetic: true,
     );
   }
 

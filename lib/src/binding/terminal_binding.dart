@@ -910,6 +910,7 @@ class TerminalBinding extends NoctermBinding
       hitTestResult,
       syntheticEvent,
       skipHover: true,
+      synthetic: true,
     );
   }
 

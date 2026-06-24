@@ -149,6 +149,7 @@ class MouseTracker {
     MouseHitTestResult hitTestResult,
     MouseEvent event, {
     bool skipHover = false,
+    bool synthetic = false,
   }) {
     // A left-button motion event without a preceding confirmed press cannot be
     // a real drag. Some macOS terminal/trackpad combinations can emit this
@@ -160,7 +161,7 @@ class MouseTracker {
         !_isLeftAlreadyPressed &&
         !event.isPrimaryButtonDown &&
         _pendingPress == null) {
-      _dispatchEvent(_asUnpressedMotion(event), hitTestResult, skipHover: skipHover);
+      _dispatchEvent(_asUnpressedMotion(event), hitTestResult, skipHover: skipHover, synthetic: synthetic);
       return;
     }
 
@@ -168,7 +169,7 @@ class MouseTracker {
     // know yet whether it is a real click, the start of a drag, or a
     // spurious trackpad press during a scroll. Skip on the synthetic
     // path — there's no real press to park.
-    if (!skipHover &&
+    if (!synthetic &&
         event.button == MouseButton.left &&
         event.pressed &&
         !_isLeftAlreadyPressed &&
@@ -193,13 +194,13 @@ class MouseTracker {
         // Dispatch the parked press first (so downstream widgets see a
         // press → release / press → motion sequence), then fall through
         // to dispatch the current event.
-        _dispatchEvent(pending, pendingHitTest, skipHover: skipHover);
+        _dispatchEvent(pending, pendingHitTest, skipHover: skipHover, synthetic: synthetic);
       }
       // Otherwise the press is silently dropped: the next event was a
       // wheel or other non-confirming signal, so the press was spurious.
     }
 
-    _dispatchEvent(event, hitTestResult, skipHover: skipHover);
+    _dispatchEvent(event, hitTestResult, skipHover: skipHover, synthetic: synthetic);
   }
 
   /// Whether the parked press at [pending] is confirmed by the arrival of
@@ -243,14 +244,23 @@ class MouseTracker {
   /// a synthetic [onEnter], but every still-hovered annotation
   /// already knows the cursor is there and doesn't need a
   /// redundant [onHover].
+  ///
+  /// If [synthetic] is `true`, button-tracking state
+  /// ([_pressedButtons]) is not mutated and the event's own
+  /// button is not enriched from [_pressedButtons]. The synthetic
+  /// path must never alter the real button-down tracking or any
+  /// active drag started by a real press event.
   void _dispatchEvent(
     MouseEvent event,
     MouseHitTestResult hitTestResult, {
     bool skipHover = false,
+    bool synthetic = false,
   }) {
     _lastMousePosition = Offset(event.x.toDouble(), event.y.toDouble());
-    _updatePressedButtons(event);
-    final effectiveEvent = _eventWithButtons(event);
+    if (!synthetic) {
+      _updatePressedButtons(event);
+    }
+    final effectiveEvent = synthetic ? event : _eventWithButtons(event);
     _hoveredAnnotations.removeWhere((a) => !a.validForMouseTracker);
 
     // Collect all annotations from the hit test result
