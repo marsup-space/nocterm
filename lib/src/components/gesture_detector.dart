@@ -284,6 +284,7 @@ class _RenderGestureDetector extends RenderMouseRegion {
       _gestureAnnotation ?? super.annotation;
 
   void _updateGestureAnnotation() {
+    _gestureAnnotation?.validForMouseTracker = false;
     _gestureAnnotation = MouseTrackerAnnotation(
       onEnter: (event) {
         // When entering, sync our state with the current button state
