@@ -2,6 +2,7 @@
 
 ## Bug Fixes
 - **TextField word navigation**: `Alt+Arrow` (Option+Arrow on macOS) now moves the cursor by word, matching the existing `Ctrl+Arrow` binding. macOS users couldn't use `Ctrl+Arrow` because `Ctrl+<` / `Ctrl+>` are bound to Mission Control; accepting both modifiers keeps word movement working identically across platforms. `Shift+Alt+Arrow` extends the selection by a word. Plain `Shift+Arrow` still extends by a character.
+- **InputParser: macOS Option-as-Meta word navigation** — on macOS Terminal.app (default "Use Option as Meta") and on iTerm2 without the kitty keyboard protocol / `modifyOtherKeys` enabled, `Option+→` arrives as `ESC f`, `Option+←` as `ESC b`, and `Option+Delete` as `ESC d` (the readline meta-f / meta-b / meta-d convention) instead of a CSI modifier sequence like `\x1b[1;3C`. The parser now translates those three sequences to `Alt+ArrowRight` / `Alt+ArrowLeft` / `Alt+Delete`, which the TextField word-navigation handler picks up. Tradeoff: `Option+f` / `Option+b` / `Option+d` also become word-movement rather than literal-character insertion — the same constraint every readline app on a default-configured macOS terminal already lives with. Terminals that *do* send a proper CSI modifier sequence (`\x1b[1;3C`) are unaffected.
 
 ---
 

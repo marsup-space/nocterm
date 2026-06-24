@@ -325,6 +325,47 @@ class InputParser {
 
       // Alt+letter (lowercase)
       if (second >= 0x61 && second <= 0x7A) {
+        // macOS Terminal.app's default "Use Option as Meta" mode (and
+        // iTerm2 without the kitty keyboard protocol / modifyOtherKeys
+        // enabled) sends `ESC f` / `ESC b` / `ESC d` for
+        // Option+→ / Option+← / Option+Delete instead of a CSI modifier
+        // sequence like `\x1b[1;3C`. Without a proper modifier byte on
+        // the wire we can't tell those apart from the user wanting to
+        // insert the literal letter — follow the readline convention
+        // (M-f = forward-char, M-b = backward-char, M-d = kill-word)
+        // and translate them to the matching word-movement events so
+        // Option+Arrow / Option+Delete just work in a default-configured
+        // terminal. The tradeoff is that `Option+f` also becomes
+        // "forward word" rather than "insert f"; that's the same
+        // constraint every readline app on the default macOS terminal
+        // already lives with.
+        switch (second) {
+          case 0x66: // 'f' — readline forward-char → Alt+ArrowRight
+            return (
+              KeyboardEvent(
+                logicalKey: LogicalKey.arrowRight,
+                modifiers: const ModifierKeys(alt: true),
+              ),
+              2,
+            );
+          case 0x62: // 'b' — readline backward-char → Alt+ArrowLeft
+            return (
+              KeyboardEvent(
+                logicalKey: LogicalKey.arrowLeft,
+                modifiers: const ModifierKeys(alt: true),
+              ),
+              2,
+            );
+          case 0x64: // 'd' — readline kill-word → Alt+Delete (forward)
+            return (
+              KeyboardEvent(
+                logicalKey: LogicalKey.delete,
+                modifiers: const ModifierKeys(alt: true),
+              ),
+              2,
+            );
+        }
+
         // Return the base key with Alt modifier
         final char = String.fromCharCode(second);
         final baseKey =
