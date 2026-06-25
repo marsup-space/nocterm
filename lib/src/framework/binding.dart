@@ -100,6 +100,15 @@ abstract class NoctermBinding {
     return text;
   }
 
+  /// True if a paste payload is currently stashed by [setPendingPasteText]
+  /// and not yet consumed by [consumePendingPasteText]. Components can
+  /// use this to distinguish a user-initiated Ctrl+V from the synthetic
+  /// Ctrl+V that TerminalBinding emits to route an IME bracketed paste
+  /// — without this peek, a handler that reads the system clipboard on
+  /// every Ctrl+V would mis-attach whatever image the user happened to
+  /// have on their clipboard on every IME candidate confirmation.
+  bool get hasPendingPasteText => _pendingPasteText != null;
+
   @visibleForTesting
   void setPendingPasteTextForTest(String text) {
     _pendingPasteText = text;
