@@ -6,6 +6,29 @@
 - **TextField: macOS Cmd+A/C/V/X (Meta+A/C/V/X) alias for select-all / copy / cut / paste** — the kitty keyboard protocol parses the Cmd key into a "super"/Meta modifier, so `Cmd+A/C/V/X` was reaching TextField with `meta: true` and falling through to the character-insertion branch (typing a literal `a` / `c` / `v` / `x`). The select-all / copy / cut / paste handlers now accept either `ctrl: true` or `meta: true`, so `Cmd+A/C/V/X` work the same way macOS GUI users expect. `Cmd+W` and `Cmd+T` are intentionally NOT aliased — those have their own macOS conventions (close window / new tab) and should keep falling through.
 - **NoctermBinding: `hasPendingPasteText` peek for synthetic-Ctrl+V detection** — components can now distinguish a user-initiated Ctrl+V from the synthetic Ctrl+V that TerminalBinding emits to route an IME bracketed paste. Without this peek, a component handler that reads the system clipboard on every Ctrl+V (e.g. to attach a clipboard image) would mis-attach whatever image the user happened to have on their clipboard on every IME candidate confirmation, making CJK input unusable. Crux's chat_input is the first consumer.
 
+# 0.8.0
+
+## Bug Fixes
+- **IME composition (Windows/CJK)**: Emit each rendered frame in a single pipe write so the terminal never anchors the IME composition window to a transient streaming cell — fixes IME window flickering across the screen during chat/log streaming
+- **IME cursor**: Stabilize IME cursor position to prevent Chinese input flickering
+- **TextField cursor**: Correct cursor position with multiple consecutive newlines
+- **Windows input**: Restore `ENABLE_PROCESSED_INPUT` so Ctrl+C generates SIGINT
+- **Windows input**: Cap the input loop wait so timers and signals fire reliably
+- **Win32 input**: Encode `KEY_EVENT_RECORD.uChar` as UTF-8 for correct IME input
+- **Win32 mouse**: Forward bare mouse motion as SGR button 35 so hover works
+- **Character width**: Keep East Asian Ambiguous punctuation single-width
+- **Selection**: Edge auto-scroll during selection drag in scroll views
+- **Terminal shutdown**: Stop sending DECRDA query on TUI shutdown
+- **Project paths**: Terminate `getProjectDirectory` walk at Windows drive roots
+- **TextField**: Use `InputDecoration` instead of `BoxDecoration`
+
+## Refactoring
+- **Character width**: Delegate CJK classification to the xterm wcwidth table
+
+## Chores
+- **CI**: Bump GitHub Actions to node24-compatible majors
+- Strengthen the test suite with additional matchers, audit fixes, and gap coverage
+
 ---
 
 # 0.7.0
