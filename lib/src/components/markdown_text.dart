@@ -20,7 +20,8 @@ import 'package:nocterm/src/utils/unicode_width.dart';
 /// - Ordered lists (1., 2., etc.)
 /// - `Inline code` using backticks
 /// - Code blocks using triple backticks
-/// - Links [text](url) - displayed as "text [url]"
+/// - Links `[text](url)` — rendered as just `text` when a label is
+///   provided; falls back to the raw URL when no label is given
 /// - Blockquotes using >
 /// - Horizontal rules using ---, ***, or ___
 ///
@@ -359,16 +360,14 @@ class _MarkdownVisitor {
       case 'a':
         final href = element.attributes['href'] ?? '';
         final text = element.textContent;
+        // When a label is provided, render only the label — no URL
+        // appendix in brackets. When no label is provided
+        // (`[](https://…)`), fall back to the URL itself so the link
+        // is still visible.
+        final displayText = text.isNotEmpty ? text : href;
         return TextSpan(
-          children: [
-            TextSpan(text: text, style: styleSheet.linkStyle),
-            TextSpan(
-                text: ' [$href]',
-                style: styleSheet.linkStyle?.copyWith(
-                  fontWeight: FontWeight.normal,
-                  decoration: TextDecoration.none,
-                )),
-          ],
+          text: displayText,
+          style: styleSheet.linkStyle,
         );
       case 'img':
         final alt = element.attributes['alt'] ?? 'image';

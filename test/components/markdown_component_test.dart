@@ -163,12 +163,26 @@ void main() {
       expect(text, contains('raw code'));
     });
 
-    test('renders link with URL in brackets', () {
+    test('renders link with label only — no URL appendix', () {
       final link =
           const LinkNode(url: 'https://dart.dev', children: [TextNode('Dart')]);
       final text = _extractText(renderer.renderNode(link));
+      // Label is visible, URL appendix is suppressed when a label
+      // is provided. The URL is still recoverable via `onLinkTap`
+      // (wired in the chat layer), not by appending it to the
+      // rendered text.
       expect(text, contains('Dart'));
-      expect(text, contains('[https://dart.dev]'));
+      expect(text, isNot(contains('https://')));
+      expect(text, isNot(contains('dart.dev')));
+    });
+
+    test('renders empty-label link with URL fallback', () {
+      final link =
+          const LinkNode(url: 'https://example.com/page', children: []);
+      final text = _extractText(renderer.renderNode(link));
+      // No label → fall back to the URL itself so the link is still
+      // visible (and clickable).
+      expect(text, contains('example.com'));
     });
 
     test('renders image as alt text', () {

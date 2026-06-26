@@ -126,8 +126,29 @@ Ordered list:
             const MarkdownText('Check out [Flutter](https://flutter.dev)!'),
           );
 
+          // Label is visible, URL appendix is suppressed when a
+          // label is provided. The user only sees the label text —
+          // the underlying URL is still available via `onLinkTap`,
+          // which is wired in the chat layer.
           expect(tester.terminalState, containsText('Flutter'));
-          expect(tester.terminalState, containsText('[https://flutter.dev]'));
+          expect(tester.terminalState.containsText('flutter.dev'), isFalse);
+          expect(tester.terminalState.containsText('http'), isFalse);
+          expect(tester.terminalState.containsText('['), isFalse);
+        },
+        debugPrintAfterPump: true,
+      );
+    });
+
+    test('empty-label link falls back to URL', () async {
+      await testNocterm(
+        'empty-label link',
+        (tester) async {
+          await tester.pumpComponent(
+            const MarkdownText('See [](https://example.com/page)'),
+          );
+          // No label provided — fall back to the URL so the link
+          // is still visible (and clickable).
+          expect(tester.terminalState, containsText('example.com'));
         },
         debugPrintAfterPump: true,
       );

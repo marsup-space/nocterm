@@ -412,25 +412,26 @@ class MDownRenderer {
 
   List<InlineSpan> _renderLink(LinkNode node) {
     final linkText = renderNodes(node.children);
-    return [
-      TextSpan(
-        children: [
-          ...linkText.map(
-            (s) => s is TextSpan
-                ? TextSpan(
-                    text: s.text,
-                    children: s.children,
-                    style: styleSheet.linkStyle)
-                : s,
-          ),
-          TextSpan(
-            text: ' [${node.url}]',
-            style: styleSheet.linkStyle.copyWith(
-                fontWeight: FontWeight.normal, decoration: TextDecoration.none),
-          ),
-        ],
+    // When the link has a non-empty visible label, render just the
+    // label — no `[url]` appendix. When the label is empty
+    // (`[](https://…)`), fall back to the URL so the link is still
+    // visible.
+    final hasLabel = linkText.any((s) =>
+        s is TextSpan && (s.text?.isNotEmpty ?? false));
+    final children = <InlineSpan>[
+      ...linkText.map(
+        (s) => s is TextSpan
+            ? TextSpan(
+                text: s.text,
+                children: s.children,
+                style: styleSheet.linkStyle)
+            : s,
       ),
     ];
+    if (!hasLabel) {
+      children.add(TextSpan(text: node.url, style: styleSheet.linkStyle));
+    }
+    return [TextSpan(children: children)];
   }
 
   List<InlineSpan> _renderList(ListNode node) {
