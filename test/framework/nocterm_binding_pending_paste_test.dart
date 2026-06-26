@@ -12,11 +12,11 @@ import 'package:test/test.dart';
 
 void main() {
   // Initialize a NoctermTestBinding once for the whole group so
-  // NoctermBinding.instance is non-null in every test below.
-  late NoctermTestBinding binding;
-
+  // NoctermBinding.instance is non-null in every test below. The
+  // constructor's side effect (registering itself as the singleton)
+  // is what we care about — the returned instance is never read.
   setUpAll(() {
-    binding = NoctermTestBinding(size: const Size(80, 24));
+    NoctermTestBinding(size: const Size(80, 24));
   });
 
   group('NoctermBinding.pending paste slot', () {
