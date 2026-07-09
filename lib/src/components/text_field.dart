@@ -145,10 +145,11 @@ class TextField extends StatefulComponent {
     this.cursorStyle = CursorStyle.block,
     this.cursorBlinkRate,
     this.selectionColor,
-    this.showCursor = true,
+        this.showCursor = true,
     this.width,
     this.height,
-  })  : assert(maxLines == null || maxLines > 0),
+    this.styleSegments,
+  })   : assert(maxLines == null || maxLines > 0),
         assert(minLines == null || minLines > 0),
         assert(
           (maxLines == null) || (minLines == null) || (maxLines >= minLines),
@@ -209,6 +210,23 @@ class TextField extends StatefulComponent {
   final bool showCursor;
   final double? width;
   final double? height;
+
+  /// Optional per-character styled segments for rich text rendering.
+  ///
+  /// When provided, the text field renders each segment with its own
+  /// [TextStyle] (including [TextStyle.backgroundColor]) instead of
+  /// applying a single style to the whole text. This enables inline
+  /// "chip" styling — e.g. `$skill-name` rendered with a highlighted
+  /// background while the rest of the text stays plain.
+  ///
+  /// The segments must cover the full text without gaps or overlaps:
+  /// `segments.map((s) => s.text).join() == text`. The layout engine
+  /// still operates on the plain [text] from [controller]; segments
+  /// only affect paint-time styling.
+  ///
+  /// When null (the default), the field uses [style] for the entire
+  /// text (original behavior).
+  final List<StyledTextSegment>? styleSegments;
 
   @override
   State<TextField> createState() => _TextFieldState();
@@ -1063,6 +1081,7 @@ class _TextFieldState extends State<TextField> {
           onRenderObjectCreate: (renderObject) {
             _renderTextField = renderObject;
           },
+          styleSegments: component.styleSegments,
         );
 
         if (decoration.border != null || decoration.fillColor != null) {
@@ -1108,6 +1127,7 @@ class _TextFieldContent extends SingleChildRenderObjectComponent {
     this.obscuringCharacter = '•',
     this.onSelectionChange,
     this.onRenderObjectCreate,
+    this.styleSegments,
   });
 
   final String text;
@@ -1127,6 +1147,7 @@ class _TextFieldContent extends SingleChildRenderObjectComponent {
   final String obscuringCharacter;
   final void Function(TextSelection)? onSelectionChange;
   final void Function(RenderTextField)? onRenderObjectCreate;
+  final List<StyledTextSegment>? styleSegments;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
@@ -1147,6 +1168,7 @@ class _TextFieldContent extends SingleChildRenderObjectComponent {
       obscureText: obscureText,
       obscuringCharacter: obscuringCharacter,
       onSelectionChange: onSelectionChange,
+      styleSegments: styleSegments,
     );
     onRenderObjectCreate?.call(renderObject);
     return renderObject;
@@ -1169,7 +1191,8 @@ class _TextFieldContent extends SingleChildRenderObjectComponent {
       ..maxLines = maxLines
       ..isFocused = isFocused
       ..obscureText = obscureText
-      ..obscuringCharacter = obscuringCharacter;
+      ..obscuringCharacter = obscuringCharacter
+      ..styleSegments = styleSegments;
   }
 }
 
@@ -1192,6 +1215,7 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
     bool obscureText = false,
     String obscuringCharacter = '•',
     this.onSelectionChange,
+    List<StyledTextSegment>? styleSegments,
   })  : _text = text,
         _placeholder = placeholder,
         _style = style,
@@ -1206,7 +1230,8 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
         _maxLines = maxLines,
         _isFocused = isFocused,
         _obscureText = obscureText,
-        _obscuringCharacter = obscuringCharacter {
+        _obscuringCharacter = obscuringCharacter,
+        _styleSegments = styleSegments {
     _updateMouseAnnotation();
   }
 
@@ -1222,6 +1247,21 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
   Color? _selectionColor;
   TextAlign _textAlign;
 
+  /// Optional per-character styled segments for rich text rendering.
+  /// When provided, text is painted segment-by-segment with each
+  /// segment's own style (including backgroundColor). The base
+  /// [_style] is used as a fallback for segments that don't specify
+  /// a color.
+  List<StyledTextSegment>? _styleSegments;
+  List<StyledTextSegment>? get styleSegments => _styleSegments;
+  set styleSegments(List<StyledTextSegment>? value) {
+    if (_styleSegments != value) {
+      _styleSegments = value;
+      _styledLines = null;
+      markNeedsPaint();
+    }
+  }
+
   @override
   bool hitTestSelf(Offset position) => true;
   int? _maxLines;
@@ -1234,6 +1274,10 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
 
   // Store the layout result for proper Unicode rendering
   TextLayoutResult? _layoutResult;
+
+  // Cache of styled lines — computed from _styleSegments + _layoutResult.
+  // Null when styleSegments is null (original single-style behavior).
+  List<List<StyledTextSegment>>? _styledLines;
 
   // Track target visual column for vertical movement
   int? _targetVisualColumn;
@@ -1252,6 +1296,7 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
   set text(String value) {
     if (_text != value) {
       _text = value;
+      _styledLines = null;
       markNeedsLayout();
     }
   }
@@ -1847,13 +1892,145 @@ class RenderTextField extends RenderObject with MouseTrackerAnnotationProvider {
             isLastLine: false);
       }
 
-      _paintLineWithSelection(
-          canvas, Offset(xOffset, offset.dy + i), displayLine, textStyle, i);
+      if (_styleSegments != null) {
+        _paintLineWithSegments(
+            canvas, Offset(xOffset, offset.dy + i), displayLine, textStyle, i);
+      } else {
+        _paintLineWithSelection(
+            canvas, Offset(xOffset, offset.dy + i), displayLine, textStyle, i);
+      }
     }
 
     // Paint cursor only for the focused field
     if (_cursorVisible && _isFocused) {
       _paintCursor(canvas, offset);
+    }
+  }
+
+  /// Maps styled segments to the laid-out lines (similar to
+  /// RenderParagraph._mapSegmentsToLines). Called lazily and cached
+  /// in [_styledLines].
+  List<List<StyledTextSegment>> _computeStyledLines() {
+    if (_styledLines != null) return _styledLines!;
+    if (_layoutResult == null || _styleSegments == null) return const [];
+
+    final lines = _layoutResult!.lines;
+    final List<List<StyledTextSegment>> result = [];
+
+    // Flatten segments into (grapheme, style) pairs.
+    final List<(String, TextStyle?)> charStyles = [];
+    for (final segment in _styleSegments!) {
+      for (final grapheme in segment.text.characters) {
+        charStyles.add((grapheme, segment.style));
+      }
+    }
+
+    int charIndex = 0;
+    for (final line in lines) {
+      final List<StyledTextSegment> lineSegments = [];
+      // Skip newlines.
+      while (
+          charIndex < charStyles.length && charStyles[charIndex].$1 == '\n') {
+        charIndex++;
+      }
+      final lineGraphemeCount = line.characters.length;
+      int linePos = 0;
+      while (linePos < lineGraphemeCount && charIndex < charStyles.length) {
+        final (char, style) = charStyles[charIndex];
+        if (char == '\n') {
+          charIndex++;
+          continue;
+        }
+        final currentStyle = style;
+        final buffer = StringBuffer();
+        while (charIndex < charStyles.length &&
+            linePos < lineGraphemeCount &&
+            charStyles[charIndex].$2 == currentStyle &&
+            charStyles[charIndex].$1 != '\n') {
+          buffer.write(charStyles[charIndex].$1);
+          charIndex++;
+          linePos++;
+        }
+        if (buffer.isNotEmpty) {
+          lineSegments.add(StyledTextSegment(buffer.toString(), currentStyle));
+        }
+      }
+      result.add(lineSegments);
+    }
+
+    _styledLines = result;
+    return result;
+  }
+
+  /// Paints a line using per-segment styles. Selection highlighting
+  /// is applied on top of the segment background.
+  void _paintLineWithSegments(TerminalCanvas canvas, Offset offset,
+      String line, TextStyle baseStyle, int lineIndex) {
+    final styledLines = _computeStyledLines();
+    if (lineIndex >= styledLines.length) {
+      // Fallback: paint with base style.
+      _paintLineWithSelection(canvas, offset, line, baseStyle, lineIndex);
+      return;
+    }
+
+    final segments = styledLines[lineIndex];
+    final lines = _layoutResult?.lines ?? const [];
+    final hasSelection = !_selection.isCollapsed;
+
+    // Calculate line start offset in the full text.
+    final lineStartOffset = (lines.isNotEmpty && lineIndex < lines.length)
+        ? selection_utils.lineStartOffsets(_text, lines)[lineIndex]
+        : 0;
+    final lineEndOffset = lineStartOffset + line.length;
+
+    final selStart = hasSelection
+        ? math.min(_selection.start, _selection.end)
+        : 0;
+    final selEnd =
+        hasSelection ? math.max(_selection.start, _selection.end) : 0;
+    final hasLineSelection =
+        hasSelection && selEnd > lineStartOffset && selStart < lineEndOffset;
+
+    final selectionColor = _selectionColor ?? Colors.blue;
+    double currentX = offset.dx;
+    int charOffset = lineStartOffset;
+
+    for (final segment in segments) {
+      final segText = segment.text;
+      final segEnd = charOffset + segText.length;
+      final segStyle = segment.style ?? baseStyle;
+
+      if (hasLineSelection && selEnd > charOffset && selStart < segEnd) {
+        final localSelStart = (selStart - charOffset).clamp(0, segText.length);
+        final localSelEnd = (selEnd - charOffset).clamp(0, segText.length);
+
+        // Before selection.
+        if (localSelStart > 0) {
+          final before = segText.substring(0, localSelStart);
+          canvas.drawText(Offset(currentX, offset.dy), before, style: segStyle);
+          currentX += UnicodeWidth.stringWidth(before);
+        }
+        // Selected portion.
+        if (localSelStart < localSelEnd) {
+          final selected = segText.substring(localSelStart, localSelEnd);
+          final selStyle = segStyle.copyWith(
+            color: selection_utils.foregroundForSelection(selectionColor),
+            backgroundColor: selectionColor,
+          );
+          canvas.drawText(Offset(currentX, offset.dy), selected, style: selStyle);
+          currentX += UnicodeWidth.stringWidth(selected);
+        }
+        // After selection.
+        if (localSelEnd < segText.length) {
+          final after = segText.substring(localSelEnd);
+          canvas.drawText(Offset(currentX, offset.dy), after, style: segStyle);
+          currentX += UnicodeWidth.stringWidth(after);
+        }
+      } else {
+        canvas.drawText(Offset(currentX, offset.dy), segText, style: segStyle);
+        currentX += UnicodeWidth.stringWidth(segText);
+      }
+      charOffset = segEnd;
     }
   }
 
