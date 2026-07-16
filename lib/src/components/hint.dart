@@ -88,6 +88,7 @@ class HintController implements Listenable {
   Offset? _activePosition;
   Color? _activeColor;
   int? _activeMaxWidth;
+  int? _activeMaxLines;
   HintPlacement? _activePlacement;
   Rect? _activeSourceBounds;
   bool _visible = false;
@@ -134,6 +135,18 @@ class HintController implements Listenable {
   /// track so the right edge of the tooltip sits flush against the
   /// thumb.
   int? get activeMaxWidth => _activeMaxWidth;
+
+  /// The maximum outer height (including the rounded border) of the
+  /// active hint's tooltip, in cells. When `null`, the
+  /// [HintOverlay]'s default [HintOverlay.tooltipMaxLines] is used.
+  ///
+  /// Setting this lets the *source* of a hint grow the tooltip's
+  /// height when its content needs more lines than the overlay's
+  /// default. For example, a context-bar hover hint listing 10+
+  /// loaded skills needs more than the 4-line default — without a
+  /// per-source override, the skill list would be truncated by
+  /// ellipsis and the user would never see the full inventory.
+  int? get activeMaxLines => _activeMaxLines;
 
   /// Where the [HintOverlay] should try to place the active hint's
   /// tooltip relative to its source. The overlay uses this as a
@@ -190,6 +203,7 @@ class HintController implements Listenable {
     Object? requestId,
     Color? color,
     int? maxWidth,
+    int? maxLines,
     HintPlacement? placement,
     Rect? sourceBounds,
   }) {
@@ -219,6 +233,10 @@ class HintController implements Listenable {
       }
       if (_activeMaxWidth != maxWidth) {
         _activeMaxWidth = maxWidth;
+        changed = true;
+      }
+      if (_activeMaxLines != maxLines) {
+        _activeMaxLines = maxLines;
         changed = true;
       }
       if (_activePlacement != placement) {
@@ -265,6 +283,7 @@ class HintController implements Listenable {
     _activePosition = position;
     _activeColor = color;
     _activeMaxWidth = maxWidth;
+    _activeMaxLines = maxLines;
     _activePlacement = placement;
     _activeSourceBounds = sourceBounds;
 
@@ -304,6 +323,7 @@ class HintController implements Listenable {
     _activePosition = null;
     _activeColor = null;
     _activeMaxWidth = null;
+    _activeMaxLines = null;
     _activePlacement = null;
     _activeSourceBounds = null;
     _visible = false;
@@ -384,6 +404,19 @@ mixin HintStateMixin<T extends StatefulComponent> on State<T> {
   /// filling exactly the space between the chat content and the
   /// scrollbar) override this to pin the width.
   int? get hintMaxWidth => null;
+
+  /// Optional outer height of the tooltip in cells, *including* the
+  /// border. When non-null, the [HintOverlay] lets the tooltip
+  /// grow to this many lines instead of the [HintOverlay.tooltipMaxLines]
+  /// default. When `null`, the overlay's `tooltipMaxLines` default
+  /// is used and the content is truncated with an ellipsis.
+  ///
+  /// Components whose hint content scales with runtime state
+  /// (e.g. a list of loaded skills that may have 0, 1, or 20
+  /// entries depending on the session) override this to size the
+  /// tooltip to the actual content, so the user always sees the
+  /// full inventory and never a truncated list.
+  int? get hintMaxLines => null;
 
   /// Which side of the source the [HintOverlay] should prefer when
   /// placing the tooltip. Defaults to [HintPlacement.above] so a
@@ -507,6 +540,7 @@ mixin HintStateMixin<T extends StatefulComponent> on State<T> {
         requestId: _requestId,
         color: hintColor,
         maxWidth: hintMaxWidth,
+        maxLines: hintMaxLines,
         placement: hintPlacement,
         sourceBounds: hintSourceBounds(event),
       );
@@ -623,6 +657,11 @@ class _HintOverlayState extends State<HintOverlay> {
     // tooltip's right edge sits flush against the thumb). When
     // unset, fall back to the [HintOverlay]'s own default.
     final maxWidth = _controller.activeMaxWidth ?? component.tooltipMaxWidth;
+    // Same source-override contract for [HintController.activeMaxLines]:
+    // a hint with a runtime-sized list (e.g. the context bar's
+    // loaded-skills line) bumps this past the 4-line default so the
+    // full inventory fits without ellipsis truncation.
+    final maxLines = _controller.activeMaxLines ?? component.tooltipMaxLines;
 
     // Always wrap in a [LayoutBuilder] so the widget type doesn't
     // change when the tooltip appears/disappears.  Switching from a
@@ -650,7 +689,7 @@ class _HintOverlayState extends State<HintOverlay> {
           final contentLines =
               1 + '\n'.allMatches(hint).length;
           final clampedLines =
-              contentLines.clamp(1, component.tooltipMaxLines);
+              contentLines.clamp(1, maxLines);
           final tooltipSize = Size(
             maxWidth.toDouble(),
             (clampedLines + 2).toDouble(), // +2 for top/bottom border
@@ -677,7 +716,7 @@ class _HintOverlayState extends State<HintOverlay> {
                   backgroundColor: component.tooltipBackgroundColor,
                   borderColor: component.tooltipBorderColor,
                   maxWidth: maxWidth,
-                  maxLines: component.tooltipMaxLines,
+                  maxLines: maxLines,
                 ),
               ),
           ],
