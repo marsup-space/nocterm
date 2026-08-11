@@ -230,6 +230,145 @@ void main() {
     });
   });
 
+  // Under the kitty disambiguate flag (this package pushes `>17u`), Ghostty
+  // and other kitty-compliant terminals report arrows/Home/End with an
+  // explicit modifier parameter — `CSI 1;<mod><letter>` — even for a plain
+  // keypress (mod `1`). Neither the bare 3-byte branch nor the hardcoded
+  // `1;2/1;3/1;5` modified-arrow branches claim that shape, so these keys
+  // were silently dropped. These tests pin the additive fix.
+  group('kitty legacy functional keys (CSI 1;mod letter)', () {
+    group('KeyboardParser', () {
+      late KeyboardParser parser;
+      setUp(() => parser = KeyboardParser());
+
+      test('plain Up: \\x1b[1;1A', () {
+        final e = parser.parseBytes('\x1B[1;1A'.codeUnits);
+        expect(e, isNotNull);
+        expect(e!.logicalKey, equals(LogicalKey.arrowUp));
+        expect(e.modifiers.hasAnyModifier, isFalse);
+      });
+
+      test('plain Down/Left/Right: \\x1b[1;1B/D/C', () {
+        for (final (seq, key) in [
+          ('\x1B[1;1B', LogicalKey.arrowDown),
+          ('\x1B[1;1D', LogicalKey.arrowLeft),
+          ('\x1B[1;1C', LogicalKey.arrowRight),
+        ]) {
+          parser.clear();
+          final e = parser.parseBytes(seq.codeUnits);
+          expect(e, isNotNull, reason: seq);
+          expect(e!.logicalKey, equals(key), reason: seq);
+          expect(e.modifiers.hasAnyModifier, isFalse, reason: seq);
+        }
+      });
+
+      test('Shift+Up: \\x1b[1;2A', () {
+        final e = parser.parseBytes('\x1B[1;2A'.codeUnits);
+        expect(e!.logicalKey, equals(LogicalKey.arrowUp));
+        expect(e.modifiers.shift, isTrue);
+      });
+
+      test('Ctrl+Right: \\x1b[1;5C', () {
+        final e = parser.parseBytes('\x1B[1;5C'.codeUnits);
+        expect(e!.logicalKey, equals(LogicalKey.arrowRight));
+        expect(e.modifiers.ctrl, isTrue);
+      });
+
+      test('plain Home/End: \\x1b[1;1H / \\x1b[1;1F', () {
+        var e = parser.parseBytes('\x1B[1;1H'.codeUnits);
+        expect(e!.logicalKey, equals(LogicalKey.home));
+        expect(e.modifiers.hasAnyModifier, isFalse);
+        parser.clear();
+        e = parser.parseBytes('\x1B[1;1F'.codeUnits);
+        expect(e!.logicalKey, equals(LogicalKey.end));
+        expect(e.modifiers.hasAnyModifier, isFalse);
+      });
+    });
+
+    group('InputParser', () {
+      late InputParser parser;
+      setUp(() => parser = InputParser());
+
+      KeyboardEvent parse(String seq) {
+        parser.clear();
+        parser.addBytes(seq.codeUnits);
+        final e = parser.parseNext();
+        expect(e, isA<KeyboardInputEvent>(), reason: seq);
+        return (e as KeyboardInputEvent).event;
+      }
+
+      test('plain Up: \\x1b[1;1A', () {
+        final e = parse('\x1B[1;1A');
+        expect(e.logicalKey, equals(LogicalKey.arrowUp));
+        expect(e.modifiers.hasAnyModifier, isFalse);
+      });
+
+      test('plain arrows B/D/C', () {
+        expect(parse('\x1B[1;1B').logicalKey, equals(LogicalKey.arrowDown));
+        expect(parse('\x1B[1;1D').logicalKey, equals(LogicalKey.arrowLeft));
+        expect(parse('\x1B[1;1C').logicalKey, equals(LogicalKey.arrowRight));
+      });
+
+      test('Shift+Down: \\x1b[1;2B', () {
+        final e = parse('\x1B[1;2B');
+        expect(e.logicalKey, equals(LogicalKey.arrowDown));
+        expect(e.modifiers.shift, isTrue);
+      });
+
+      test('Ctrl+Left: \\x1b[1;5D', () {
+        final e = parse('\x1B[1;5D');
+        expect(e.logicalKey, equals(LogicalKey.arrowLeft));
+        expect(e.modifiers.ctrl, isTrue);
+      });
+
+      test('plain Home/End', () {
+        expect(parse('\x1B[1;1H').logicalKey, equals(LogicalKey.home));
+        expect(parse('\x1B[1;1F').logicalKey, equals(LogicalKey.end));
+      });
+    });
+
+    // Cross-platform guard: the legacy forms terminals emit *without* the
+    // kitty flag (macOS Terminal.app, iTerm2, xterm, Windows) must keep
+    // parsing exactly as before — the new branch must not steal them.
+    group('legacy forms still parse (no kitty flag)', () {
+      late KeyboardParser parser;
+      setUp(() => parser = KeyboardParser());
+
+      test('bare 3-byte arrows ESC[A/B/C/D', () {
+        for (final (byte, key) in [
+          (0x41, LogicalKey.arrowUp),
+          (0x42, LogicalKey.arrowDown),
+          (0x43, LogicalKey.arrowRight),
+          (0x44, LogicalKey.arrowLeft),
+        ]) {
+          parser.clear();
+          final e = parser.parseBytes([0x1B, 0x5B, byte]);
+          expect(e, isNotNull);
+          expect(e!.logicalKey, equals(key));
+          expect(e.modifiers.hasAnyModifier, isFalse);
+        }
+      });
+
+      test('bare Home/End ESC[H / ESC[F', () {
+        var e = parser.parseBytes([0x1B, 0x5B, 0x48]);
+        expect(e!.logicalKey, equals(LogicalKey.home));
+        parser.clear();
+        e = parser.parseBytes([0x1B, 0x5B, 0x46]);
+        expect(e!.logicalKey, equals(LogicalKey.end));
+      });
+
+      test('legacy modified arrows ESC[1;2A / ESC[1;5C', () {
+        var e = parser.parseBytes('\x1B[1;2A'.codeUnits);
+        expect(e!.logicalKey, equals(LogicalKey.arrowUp));
+        expect(e.modifiers.shift, isTrue);
+        parser.clear();
+        e = parser.parseBytes('\x1B[1;5C'.codeUnits);
+        expect(e!.logicalKey, equals(LogicalKey.arrowRight));
+        expect(e.modifiers.ctrl, isTrue);
+      });
+    });
+  });
+
   group('modifyOtherKeys protocol', () {
     group('KeyboardParser', () {
       late KeyboardParser parser;

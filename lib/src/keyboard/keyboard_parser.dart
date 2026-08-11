@@ -230,6 +230,16 @@ class KeyboardParser {
       if (result != null) return result;
     }
 
+    // Kitty-protocol legacy functional keys with an explicit modifier field:
+    // CSI 1 ; <modifier> <letter>  (e.g. ESC [ 1 ; 1 A = plain Up). See the
+    // identical clause in InputParser for the full rationale — under the
+    // kitty disambiguate flag Ghostty always includes the modifier parameter,
+    // which none of the legacy branches below claim. Purely additive.
+    {
+      final result = _parseKittyLegacyFunctional();
+      if (result != null) return result;
+    }
+
     // Arrow keys: ESC [ A/B/C/D
     if (_buffer.length == 3) {
       switch (_buffer[2]) {
@@ -441,6 +451,52 @@ class KeyboardParser {
 
     // Need more bytes
     return null;
+  }
+
+  /// Parse kitty-protocol legacy functional keys of the form
+  /// `CSI 1 ; <modifier> <final-letter>` (A/B/C/D arrows, H/F Home/End,
+  /// P/Q/S F1–F4). Mirrors `InputParser._parseKittyLegacyFunctional` — see
+  /// that method for the full rationale. Returns null when the buffer doesn't
+  /// hold a complete sequence of this exact shape.
+  KeyboardEvent? _parseKittyLegacyFunctional() {
+    if (_buffer.length < 6) return null;
+    if (_buffer[1] != 0x5B) return null; // '['
+    if (_buffer[2] != 0x31) return null; // '1'
+    if (_buffer[3] != 0x3B) return null; // ';'
+
+    int i = 4;
+    final modStart = i;
+    while (i < _buffer.length &&
+        _buffer[i] >= 0x30 &&
+        _buffer[i] <= 0x39) {
+      i++;
+    }
+    if (i == modStart) return null; // no modifier digits
+    if (i >= _buffer.length) return null; // incomplete; wait for more bytes
+
+    final finalByte = _buffer[i];
+    final modValue =
+        int.tryParse(String.fromCharCodes(_buffer.sublist(modStart, i)));
+    if (modValue == null) return null;
+    final modifiers = _decodeModifiers(modValue);
+
+    final LogicalKey? key = switch (finalByte) {
+      0x41 => LogicalKey.arrowUp,
+      0x42 => LogicalKey.arrowDown,
+      0x43 => LogicalKey.arrowRight,
+      0x44 => LogicalKey.arrowLeft,
+      0x48 => LogicalKey.home,
+      0x46 => LogicalKey.end,
+      0x50 => LogicalKey.f1,
+      0x51 => LogicalKey.f2,
+      0x53 => LogicalKey.f4,
+      // 0x45 ('E') keypad Begin and 0x52 ('R', conflicts with cursor-position
+      // report) are intentionally unmapped.
+      _ => null,
+    };
+    if (key == null) return null;
+
+    return KeyboardEvent(logicalKey: key, modifiers: modifiers);
   }
 
   KeyboardEvent? _parseSS3Sequence() {

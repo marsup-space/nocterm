@@ -427,6 +427,24 @@ class InputParser {
       if (result != null) return result;
     }
 
+    // Kitty-protocol legacy functional keys with an explicit modifier field:
+    // CSI 1 ; <modifier> <letter>  (e.g. ESC [ 1 ; 1 A = plain Up).
+    //
+    // When the kitty disambiguate flag is on (this package pushes `>17u`),
+    // terminals such as Ghostty stop emitting the bare 3-byte `ESC [ A` for
+    // plain arrows and instead always include the modifier parameter — `1`
+    // when no modifier is held. None of the legacy branches below claim that
+    // shape (the 3-byte branch requires exactly 3 bytes; the modified-arrow
+    // branches only match modifiers 2/3/5), so without this clause the key
+    // matches nothing and is silently dropped. This is purely additive: it
+    // only fires on `CSI 1;<mod><final>` sequences the legacy branches reject,
+    // so legacy terminals (macOS Terminal.app, iTerm2, xterm, Windows) that
+    // never emit the explicit-modifier form are unaffected.
+    {
+      final result = _parseKittyLegacyFunctional();
+      if (result != null) return result;
+    }
+
     // Arrow keys: ESC [ A/B/C/D (3 bytes)
     if (_buffer.length == 3) {
       switch (_buffer[2]) {
@@ -706,6 +724,82 @@ class InputParser {
 
     // Need more bytes
     return null;
+  }
+
+  /// Parse kitty-protocol legacy functional keys of the form
+  /// `CSI 1 ; <modifier> <final-letter>`, where the final letter is one of
+  /// A/B/C/D (arrows), H/F (Home/End), E (keypad Begin), or P/Q/S (F1–F4).
+  ///
+  /// Under the kitty keyboard protocol these keys are always reported with a
+  /// leading `1` key-number and an explicit modifier parameter (`1` = none),
+  /// even for a plain keypress. Returns null when the buffer doesn't hold a
+  /// complete sequence of this exact shape, leaving the legacy branches to
+  /// handle the bare 3-byte / other-modifier forms.
+  (KeyboardEvent, int)? _parseKittyLegacyFunctional() {
+    // Minimum complete sequence: ESC [ 1 ; <mod> <final> = 6 bytes.
+    if (_buffer.length < 6) return null;
+    // Must be CSI '1' ';' ...
+    if (_buffer[1] != 0x5B) return null; // '['
+    if (_buffer[2] != 0x31) return null; // '1'
+    if (_buffer[3] != 0x3B) return null; // ';'
+
+    // Scan the modifier digits up to the final letter.
+    int i = 4;
+    final modStart = i;
+    while (i < _buffer.length &&
+        _buffer[i] >= 0x30 &&
+        _buffer[i] <= 0x39) {
+      i++;
+    }
+    if (i == modStart) return null; // no modifier digits
+    if (i >= _buffer.length) return null; // incomplete; wait for more bytes
+
+    final finalByte = _buffer[i];
+    final modStr =
+        String.fromCharCodes(_buffer.sublist(modStart, i));
+    final modValue = int.tryParse(modStr);
+    if (modValue == null) return null;
+    final modifiers = _decodeModifiers(modValue);
+
+    LogicalKey? key;
+    switch (finalByte) {
+      case 0x41:
+        key = LogicalKey.arrowUp;
+        break;
+      case 0x42:
+        key = LogicalKey.arrowDown;
+        break;
+      case 0x43:
+        key = LogicalKey.arrowRight;
+        break;
+      case 0x44:
+        key = LogicalKey.arrowLeft;
+        break;
+      case 0x48:
+        key = LogicalKey.home;
+        break;
+      case 0x46:
+        key = LogicalKey.end;
+        break;
+      case 0x50:
+        key = LogicalKey.f1;
+        break;
+      case 0x51:
+        key = LogicalKey.f2;
+        break;
+      case 0x53:
+        key = LogicalKey.f4;
+        break;
+      // 0x45 ('E') is keypad Begin; 0x52 ('R') was F3 but conflicts with the
+      // cursor-position report, so both are intentionally unmapped.
+      default:
+        return null;
+    }
+
+    return (
+      KeyboardEvent(logicalKey: key, modifiers: modifiers),
+      i + 1
+    );
   }
 
   (KeyboardEvent, int)? _parseSS3Sequence() {
