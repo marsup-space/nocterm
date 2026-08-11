@@ -114,6 +114,27 @@ abstract class NoctermBinding {
     _pendingPasteText = text;
   }
 
+  /// Optional host-provided reader for the **system** clipboard's text.
+  ///
+  /// The framework's own paste path ([ClipboardManager.paste]) only returns
+  /// text that was copied *inside* this application session, because a
+  /// terminal cannot ask the OS for the clipboard contents portably — the
+  /// OSC 52 query is inconsistently supported. A host application that knows
+  /// how to reach the real clipboard (e.g. by shelling out to `wl-paste`,
+  /// `xclip`, `pbpaste`, …) installs that reader here so Ctrl+V in a
+  /// [TextField] pastes genuine system-clipboard text instead of only the
+  /// session-internal buffer.
+  ///
+  /// The reader should return `null` when the clipboard is empty or
+  /// unavailable. When no reader is installed (the default), paste behaves as
+  /// before: framework-stashed paste text, then the internal buffer.
+  static Future<String?> Function()? systemClipboardTextReader;
+
+  @visibleForTesting
+  static void resetSystemClipboardTextReader() {
+    systemClipboardTextReader = null;
+  }
+
   BuildOwner? _buildOwner;
   BuildOwner get buildOwner => _buildOwner ??= createBuildOwner();
 

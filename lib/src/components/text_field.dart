@@ -978,9 +978,48 @@ class _TextFieldState extends State<TextField> {
     // paste markers — doesn't clobber the user's clipboard. Real
     // Ctrl+V has no pending text and falls through to the
     // clipboard as before.
-    var clipboardText = NoctermBinding.instance.consumePendingPasteText() ??
-        ClipboardManager.paste();
-    if (clipboardText != null && clipboardText.isNotEmpty) {
+    final pending = NoctermBinding.instance.consumePendingPasteText();
+    if (pending != null && pending.isNotEmpty) {
+      _insertClipboardText(pending);
+      return;
+    }
+    _pasteFromClipboard();
+  }
+
+  /// Resolve the clipboard text and insert it.
+  ///
+  /// Sources, in priority order:
+  ///  1. An OSC 52 query to the terminal ([TerminalBinding.readClipboardViaOsc52])
+  ///     — reads the real system clipboard with no external tool, on terminals
+  ///     that answer it (Ghostty, WezTerm, kitty, …).
+  ///  2. The host-provided tool reader ([NoctermBinding.systemClipboardTextReader])
+  ///     — e.g. wl-paste/xclip/pbpaste, for terminals without OSC 52 reads.
+  ///  3. The session-internal buffer ([ClipboardManager.paste]) — last resort.
+  Future<void> _pasteFromClipboard() async {
+    String? text;
+    try {
+      text = await TerminalBinding.readClipboardViaOsc52();
+    } catch (_) {
+      text = null;
+    }
+    if (text == null) {
+      final reader = NoctermBinding.systemClipboardTextReader;
+      if (reader != null) {
+        try {
+          text = await reader();
+        } catch (_) {
+          text = null;
+        }
+      }
+    }
+    text ??= ClipboardManager.paste();
+    if (text != null && text.isNotEmpty) {
+      _insertClipboardText(text);
+    }
+  }
+
+  void _insertClipboardText(String clipboardText) {
+    if (clipboardText.isNotEmpty) {
       if (component.maxLines == 1) {
         // Single-line field: replace all newlines/carriage returns with spaces
         // This prevents accidentally submitting the form when pasting multi-line text

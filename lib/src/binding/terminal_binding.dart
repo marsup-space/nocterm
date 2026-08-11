@@ -55,6 +55,19 @@ class TerminalBinding extends NoctermBinding
   static TerminalBinding? _instance;
   static TerminalBinding get instance => _instance!;
 
+  /// Read the system clipboard via an OSC 52 query to the live terminal.
+  ///
+  /// Works with no external tool (no wl-paste/xclip/pbpaste needed) on
+  /// terminals that answer OSC 52 reads (Ghostty, WezTerm, kitty, …). Returns
+  /// null when no binding/terminal is live, the terminal doesn't answer in
+  /// time, or reads are disabled for security. [TextField]'s paste path tries
+  /// this before falling back to the host's tool-based reader.
+  static Future<String?> readClipboardViaOsc52() {
+    final binding = _instance;
+    if (binding == null) return Future.value(null);
+    return binding.terminal.readClipboard();
+  }
+
   static CtrlCBehavior? _pendingCtrlCBehavior;
   static Duration? _pendingCtrlCDoublePressTimeout;
 

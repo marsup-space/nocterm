@@ -37,6 +37,13 @@ class Terminal {
   static final _bgRegexp = RegExp('11;$_rgbPattern');
   static final _fgRegexp = RegExp('10;$_rgbPattern');
 
+  // Matches an OSC 52 clipboard reply: `52;<target>;<base64-data>`.
+  // The target is the selection the terminal answered for (c/p/s/etc.);
+  // the data is the base64-encoded clipboard contents. The reply arrives
+  // with its OSC framing (ESC] ... BEL/ST) already stripped by the input
+  // layer, so the content is just `52;c;<data>`.
+  static final _clipboardRegexp = RegExp(r'52;[a-zA-Z];([A-Za-z0-9+/=]+)');
+
   Terminal(this.backend, {Size? size}) {
     _size = size ?? backend.getSize();
   }
@@ -213,6 +220,37 @@ class Terminal {
 
     // Add to write buffer - will be flushed with next frame
     write(sequence);
+  }
+
+  /// Query the system clipboard's text via an OSC 52 read request.
+  ///
+  /// Sends `ESC]52;c;?BEL`, asking the terminal for the clipboard selection
+  /// (`c`). A supporting terminal replies with `ESC]52;c;<base64>BEL`, which
+  /// the input layer routes onto the OSC stream; we decode and return it.
+  ///
+  /// This lets a host read the real system clipboard without any external
+  /// tool (wl-paste/xclip/pbpaste). Returns null when the terminal does not
+  /// answer within [timeout] (unsupported, or reads disabled for security —
+  /// many terminals gate clipboard reads behind a prompt or setting), or when
+  /// the clipboard is empty / holds non-text data.
+  Future<String?> readClipboard({
+    Duration timeout = const Duration(milliseconds: 300),
+  }) async {
+    if (_oscStream == null) return null;
+    write('\x1b]52;c;?\x07');
+    flush();
+    return _oscStream!
+        .firstWhere(_clipboardRegexp.hasMatch)
+        .timeout(timeout)
+        .then((event) {
+      final match = _clipboardRegexp.firstMatch(event);
+      if (match == null) return null;
+      try {
+        return utf8.decode(base64Decode(match.group(1)!));
+      } catch (_) {
+        return null; // malformed base64 / non-UTF8 payload
+      }
+    }).catchError((_) => null);
   }
 
   /// Set the terminal window title using OSC 2 sequence.
