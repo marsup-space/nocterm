@@ -1,5 +1,24 @@
+import 'package:characters/characters.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
+import 'package:nocterm/src/utils/unicode_width.dart';
+
+/// Truncate [text] to at most [maxWidth] terminal columns, never splitting
+/// a wide (2-column) character. Returns [text] unchanged when it already
+/// fits.
+String _truncateToWidth(String text, int maxWidth) {
+  if (UnicodeWidth.stringWidth(text) <= maxWidth) return text;
+  final buf = StringBuffer();
+  var width = 0;
+  for (final grapheme in text.characters) {
+    final w = UnicodeWidth.graphemeWidth(grapheme);
+    if (w == 0) continue;
+    if (width + w > maxWidth) break;
+    buf.write(grapheme);
+    width += w;
+  }
+  return buf.toString();
+}
 
 /// Title alignment options for border titles
 enum TitleAlignment {
@@ -575,17 +594,18 @@ class RenderDecoratedBox extends RenderObject
           final titleText = title.plainText;
           final titleStyle = title.style ?? borderStyle;
 
-          // Calculate title display with " Title " format (space padding)
-          // We need at least 2 horizontal chars for aesthetics
+          // Calculate title display with " Title " format (space padding).
+          // Widths are in terminal *columns* via UnicodeWidth, so CJK titles
+          // (two columns per ideograph) measure and paint correctly.
           final maxTitleWidth =
-              horizontalWidth - 2; // Reserve 2 chars for border lines
+              horizontalWidth - 2; // Reserve 2 cols for border lines
           String displayTitle;
-          if (titleText.length + 2 > maxTitleWidth) {
-            // Truncate with ellipsis
-            final truncateLen =
-                maxTitleWidth - 3; // -3 for "..." and space padding
-            if (truncateLen > 0) {
-              displayTitle = ' ${titleText.substring(0, truncateLen)}… ';
+          if (UnicodeWidth.stringWidth(titleText) + 2 > maxTitleWidth) {
+            // Truncate with ellipsis (… is one column wide).
+            final truncateWidth =
+                maxTitleWidth - 3; // -3 for space + "…" + space
+            if (truncateWidth > 0) {
+              displayTitle = ' ${_truncateToWidth(titleText, truncateWidth)}… ';
             } else {
               // Not enough space even for ellipsis, skip title
               displayTitle = '';
@@ -595,7 +615,7 @@ class RenderDecoratedBox extends RenderObject
           }
 
           if (displayTitle.isNotEmpty) {
-            final titleWidth = displayTitle.length;
+            final titleWidth = UnicodeWidth.stringWidth(displayTitle);
             final remainingWidth = horizontalWidth - titleWidth;
 
             int titleStartX;
@@ -626,36 +646,33 @@ class RenderDecoratedBox extends RenderObject
                   canvas, left + 1 + i, top, chars.horizontal, borderStyle);
             }
 
-            // Paint title
+            // Paint title. Advance by each grapheme's display width so wide
+            // (CJK / emoji) characters occupy two columns without overlap.
             if (title.textSpan != null) {
               // Rich text - paint with per-character styles
               final styledSegments =
                   title.textSpan!.toStyledSegments(titleStyle);
               // Paint leading space
               _setCell(canvas, titleStartX, top, ' ', titleStyle);
-              // Paint styled characters
-              final contentLen =
-                  displayTitle.length - 2; // Minus padding spaces
-              int charIndex = 0;
+              var x = titleStartX + 1;
               for (final segment in styledSegments) {
-                for (int i = 0;
-                    i < segment.text.length && charIndex < contentLen;
-                    i++) {
-                  _setCell(canvas, titleStartX + 1 + charIndex, top,
-                      segment.text[i], segment.style ?? titleStyle);
-                  charIndex++;
+                for (final grapheme in segment.text.characters) {
+                  final w = UnicodeWidth.graphemeWidth(grapheme);
+                  if (w == 0) continue;
+                  _setCell(
+                      canvas, x, top, grapheme, segment.style ?? titleStyle);
+                  x += w;
                 }
-                if (charIndex >= contentLen) break;
               }
               // Paint trailing space
-              _setCell(canvas, titleStartX + displayTitle.length - 1, top, ' ',
-                  titleStyle);
+              _setCell(canvas, x, top, ' ', titleStyle);
             } else {
-              // Plain text - use single style
-              for (int i = 0; i < displayTitle.length; i++) {
-                _setCell(
-                    canvas, titleStartX + i, top, displayTitle[i], titleStyle);
-              }
+              // Plain text - one drawText call handles wide characters.
+              canvas.drawText(
+                Offset(titleStartX.toDouble(), top.toDouble()),
+                displayTitle,
+                style: titleStyle,
+              );
             }
 
             // Paint right horizontal chars
