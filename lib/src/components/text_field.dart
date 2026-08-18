@@ -1124,10 +1124,30 @@ class _TextFieldState extends State<TextField> {
         );
 
         if (decoration.border != null || decoration.fillColor != null) {
+          // Height policy for decorated fields:
+          //  - explicit `height` always wins;
+          //  - single-line fields keep the fixed `(lines + 2)` height;
+          //  - multi-line fields (maxLines > 1 or null) AUTO-GROW: the
+          //    container shrinks to the content height so soft-wrapped
+          //    and multi-line text never clips, with `minLines` as the
+          //    floor. `maxLines` remains the hard clip ceiling for the
+          //    text layout itself. This mirrors how Flutter's multiline
+          //    InputDecoration boxes behave.
+          final bool multiline =
+              component.maxLines == null || component.maxLines! > 1;
+          final double? fixedHeight = component.height ??
+              (multiline
+                  ? null
+                  : (component.minLines ?? 1).toDouble() + 2);
           content = Container(
             width: component.width,
-            height:
-                component.height ?? (component.maxLines ?? 1).toDouble() + 2,
+            height: fixedHeight,
+            constraints: (multiline && component.height == null)
+                ? BoxConstraints(
+                    minHeight:
+                        (component.minLines ?? 1).toDouble() + 2,
+                  )
+                : null,
             padding: decoration.contentPadding ??
                 const EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
