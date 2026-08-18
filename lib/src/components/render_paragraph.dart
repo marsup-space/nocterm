@@ -19,6 +19,7 @@ class RenderParagraph extends RenderObject with Selectable {
     int? maxLines,
     String Function(String text)? selectionTextTransformer,
     bool Function(String text)? selectionHighlightPredicate,
+    this.lineBackgroundProvider,
   })  : _text = text,
         _textAlign = textAlign,
         _softWrap = softWrap,
@@ -93,6 +94,13 @@ class RenderParagraph extends RenderObject with Selectable {
     _selectionHighlightPredicate = value;
     markNeedsPaint();
   }
+
+  /// Optional per-row background color provider, consulted in [paint]
+  /// before each line's segments are drawn. Returns the background color
+  /// to fill the row with, or null for no fill. Additive hook for the
+  /// plan pane's change-flash highlight (crux's `PlanModeController`);
+  /// null (the default) keeps the paint path allocation-free.
+  Color? Function(int row)? lineBackgroundProvider;
 
   // Cache the styled segments to avoid recomputing them
   List<StyledTextSegment>? _cachedSegments;
@@ -235,6 +243,17 @@ class RenderParagraph extends RenderObject with Selectable {
 
     for (int i = 0; i < _styledLines!.length; i++) {
       final lineSegments = _styledLines![i];
+
+      // Row background (e.g. plan-pane change flash) paints first so the
+      // segments draw on top of it.
+      final rowBg = lineBackgroundProvider?.call(i);
+      if (rowBg != null) {
+        canvas.fillRect(
+          Rect.fromLTWH(offset.dx, offset.dy + i, size.width, 1),
+          ' ',
+          style: TextStyle(backgroundColor: rowBg),
+        );
+      }
 
       // Calculate the full line text for alignment
       final StringBuffer lineBuffer = StringBuffer();

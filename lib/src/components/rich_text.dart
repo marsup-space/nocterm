@@ -28,6 +28,7 @@ class RichText extends SingleChildRenderObjectComponent {
     this.maxLines,
     this.selectionTextTransformer,
     this.selectionHighlightPredicate,
+    this.lineBackgroundProvider,
   });
 
   /// The text to display in this widget.
@@ -61,6 +62,11 @@ class RichText extends SingleChildRenderObjectComponent {
   /// painted with selection highlighting.
   final bool Function(String text)? selectionHighlightPredicate;
 
+  /// Optional per-row background color provider, forwarded to
+  /// [RenderParagraph.lineBackgroundProvider]. Used by crux's plan pane
+  /// for the change-flash highlight. Null (default) = no row fills.
+  final Color? Function(int row)? lineBackgroundProvider;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderParagraph(
@@ -71,6 +77,7 @@ class RichText extends SingleChildRenderObjectComponent {
       maxLines: maxLines,
       selectionTextTransformer: selectionTextTransformer,
       selectionHighlightPredicate: selectionHighlightPredicate,
+      lineBackgroundProvider: lineBackgroundProvider,
     );
   }
 
@@ -83,6 +90,7 @@ class RichText extends SingleChildRenderObjectComponent {
       ..overflow = overflow
       ..maxLines = maxLines
       ..selectionTextTransformer = selectionTextTransformer
-      ..selectionHighlightPredicate = selectionHighlightPredicate;
+      ..selectionHighlightPredicate = selectionHighlightPredicate
+      ..lineBackgroundProvider = lineBackgroundProvider;
   }
 }

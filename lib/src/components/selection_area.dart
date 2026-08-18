@@ -33,6 +33,7 @@ class SelectionArea extends StatefulComponent {
     this.selectionColor,
     this.onSelectionChanged,
     this.onSelectionCompleted,
+    this.onSelectionInfoChanged,
   });
 
   /// The child widget tree containing [Text] widgets to make selectable.
@@ -51,8 +52,57 @@ class SelectionArea extends StatefulComponent {
   /// Receives the selected text (or empty string if nothing is selected).
   final ValueChanged<String>? onSelectionCompleted;
 
+  /// Called when the selection changes, with structured position data.
+  ///
+  /// Unlike [onSelectionChanged] (which receives only the flattened text),
+  /// this callback receives per-[Selectable] character ranges, letting the
+  /// caller map a selection back to source coordinates (e.g. the plan
+  /// pane's `SourceMap`). Additive: [onSelectionChanged] still fires.
+  final ValueChanged<SelectionInfo>? onSelectionInfoChanged;
+
   @override
   State<SelectionArea> createState() => _SelectionAreaState();
+}
+
+/// Structured view of an active selection: the flattened text plus the
+/// per-[Selectable] character ranges it spans. With a single selectable
+/// for a whole document, [fragments] has one entry and `start`/`end` are
+/// document-global offsets.
+class SelectionInfo {
+  final String selectedText;
+  final List<SelectionFragment> fragments;
+
+  const SelectionInfo({required this.selectedText, required this.fragments});
+
+  /// The flattened selection across all fragments.
+  bool get isEmpty => fragments.isEmpty;
+
+  /// Convenience for the single-selectable case: the one fragment's
+  /// `[start, end)` range, or null when there isn't exactly one fragment.
+  (int, int)? get singleRange {
+    if (fragments.length != 1) return null;
+    final f = fragments.single;
+    return (f.start, f.end);
+  }
+}
+
+/// One [Selectable]'s slice of the selection.
+class SelectionFragment {
+  /// Identifier of the selectable this range belongs to (opaque to the
+  /// caller; stable for the lifetime of the render object).
+  final Object selectableId;
+
+  /// Start character offset into that selectable's `selectableText`.
+  final int start;
+
+  /// End character offset (exclusive).
+  final int end;
+
+  const SelectionFragment({
+    required this.selectableId,
+    required this.start,
+    required this.end,
+  });
 }
 
 class _SelectionAreaState extends State<SelectionArea> {
@@ -115,6 +165,7 @@ class _SelectionAreaState extends State<SelectionArea> {
         selectionColor: effectiveColor,
         onSelectionChanged: component.onSelectionChanged,
         onSelectionCompleted: component.onSelectionCompleted,
+        onSelectionInfoChanged: component.onSelectionInfoChanged,
         onDragStarted: _onDragStarted,
         onDragEnded: _onDragEnded,
         onRangeUpdated: _updateRange,
@@ -131,6 +182,7 @@ class _SelectionAreaWidget extends SingleChildRenderObjectComponent {
     required this.selectionColor,
     this.onSelectionChanged,
     this.onSelectionCompleted,
+    this.onSelectionInfoChanged,
     this.onDragStarted,
     this.onDragEnded,
     this.onRangeUpdated,
@@ -139,6 +191,7 @@ class _SelectionAreaWidget extends SingleChildRenderObjectComponent {
   final Color selectionColor;
   final ValueChanged<String>? onSelectionChanged;
   final ValueChanged<String>? onSelectionCompleted;
+  final ValueChanged<SelectionInfo>? onSelectionInfoChanged;
   final VoidCallback? onDragStarted;
   final VoidCallback? onDragEnded;
   final void Function(Object context, int minIndex, int maxIndex)?
@@ -150,6 +203,7 @@ class _SelectionAreaWidget extends SingleChildRenderObjectComponent {
       selectionColor: selectionColor,
       onSelectionChanged: onSelectionChanged,
       onSelectionCompleted: onSelectionCompleted,
+      onSelectionInfoChanged: onSelectionInfoChanged,
       onDragStarted: onDragStarted,
       onDragEnded: onDragEnded,
       onRangeUpdated: onRangeUpdated,
@@ -163,6 +217,7 @@ class _SelectionAreaWidget extends SingleChildRenderObjectComponent {
       ..selectionColor = selectionColor
       ..onSelectionChanged = onSelectionChanged
       ..onSelectionCompleted = onSelectionCompleted
+      ..onSelectionInfoChanged = onSelectionInfoChanged
       ..onDragStarted = onDragStarted
       ..onDragEnded = onDragEnded
       ..onRangeUpdated = onRangeUpdated;
@@ -178,6 +233,7 @@ class RenderSelectionArea extends RenderMouseRegion {
     required Color selectionColor,
     this.onSelectionChanged,
     this.onSelectionCompleted,
+    this.onSelectionInfoChanged,
     this.onDragStarted,
     this.onDragEnded,
     this.onRangeUpdated,
@@ -197,6 +253,7 @@ class RenderSelectionArea extends RenderMouseRegion {
 
   ValueChanged<String>? onSelectionChanged;
   ValueChanged<String>? onSelectionCompleted;
+  ValueChanged<SelectionInfo>? onSelectionInfoChanged;
   VoidCallback? onDragStarted;
   VoidCallback? onDragEnded;
   void Function(Object context, int minIndex, int maxIndex)? onRangeUpdated;
@@ -1182,8 +1239,42 @@ class RenderSelectionArea extends RenderMouseRegion {
 
   /// Notifies the callback with the currently selected text.
   void _notifySelectionChanged() {
-    if (onSelectionChanged == null) return;
-    onSelectionChanged!(_collectSelectedText());
+    final text = _collectSelectedText();
+    if (onSelectionChanged != null) {
+      onSelectionChanged!(text);
+    }
+    final infoCallback = onSelectionInfoChanged;
+    if (infoCallback != null) {
+      infoCallback(_buildSelectionInfo(text));
+    }
+  }
+
+  /// Build the structured [SelectionInfo] from `_anchor` / `_focus` and
+  /// the per-widget ranges already computed in [_updateSelectionRanges].
+  SelectionInfo _buildSelectionInfo(String selectedText) {
+    final anchor = _anchor;
+    final focus = _focus;
+    if (anchor == null || focus == null) {
+      return SelectionInfo(selectedText: selectedText, fragments: const []);
+    }
+
+    // The per-widget selection ranges were already pushed into each
+    // Selectable by _updateSelectionRanges; read them back so the
+    // fragments match what is actually highlighted (including the
+    // clamping / snapping rules that method applies).
+    final fragments = <SelectionFragment>[];
+    for (final s in _cachedSelectables) {
+      if (!s.hasSelection) continue;
+      final start = s.selectionStart;
+      final end = s.selectionEnd;
+      if (start == null || end == null || start == end) continue;
+      fragments.add(SelectionFragment(
+        selectableId: _selectionIdForSelectable(s),
+        start: start,
+        end: end,
+      ));
+    }
+    return SelectionInfo(selectedText: selectedText, fragments: fragments);
   }
 
   String _collectSelectedText() {
