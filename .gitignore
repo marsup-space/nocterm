@@ -32,3 +32,6 @@ pubspec_overrides.yaml
 # Benchmark baseline (machine-specific) and CI output
 benchmark/baseline.json
 benchmark/results.md
+
+# Local semble search index cache (regenerable, machine-specific)
+.cache/
