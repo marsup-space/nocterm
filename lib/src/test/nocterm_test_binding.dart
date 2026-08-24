@@ -8,6 +8,7 @@ import 'package:nocterm/src/rendering/mouse_tracker.dart';
 
 import '../backend/terminal.dart' as term;
 import '../buffer.dart' as buf;
+import '../rendering/scrollable_render_object.dart';
 
 /// Test binding for TUI applications that provides controlled frame rendering
 /// and state inspection capabilities for testing.
@@ -291,6 +292,22 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
   void _routeMouseEvent(MouseEvent event) {
     if (rootElement == null) return;
 
+    // Wheel events go to the innermost scrollable under the cursor
+    // (mirrors NoctermBinding._routeMouseEvent — without this the test
+    // binding silently drops wheels and scroll interactions can't be
+    // tested).
+    if (event.isWheel) {
+      final renderObject = _findRenderObjectInTree(rootElement!);
+      if (renderObject != null) {
+        _dispatchMouseWheelAtPosition(
+          rootElement!,
+          event,
+          Offset(event.x.toDouble(), event.y.toDouble()),
+          Offset.zero,
+        );
+      }
+    }
+
     // Find the render object in the tree
     final renderObject = _findRenderObjectInTree(rootElement!);
     if (renderObject != null) {
@@ -303,6 +320,75 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
       // Update mouse tracker with hit test results
       _mouseTracker.updateAnnotations(hitTestResult, event);
     }
+  }
+
+  /// Dispatch a mouse wheel event to scrollable RenderObjects at a
+  /// specific position (mirrors the production binding).
+  bool _dispatchMouseWheelAtPosition(
+      Element element, MouseEvent event, Offset mousePos, Offset currentOffset) {
+    // Calculate this element's bounds if it has a render object
+    Rect? elementBounds;
+    RenderObject? renderObject;
+
+    if (element is RenderObjectElement) {
+      renderObject = element.renderObject;
+      final size = renderObject.size;
+
+      // Get the offset from parent data if available
+      Offset localOffset = currentOffset;
+      if (renderObject.parentData is BoxParentData) {
+        final boxParentData = renderObject.parentData as BoxParentData;
+        localOffset = currentOffset + boxParentData.offset;
+      }
+
+      elementBounds = Rect.fromLTWH(
+        localOffset.dx,
+        localOffset.dy,
+        size.width,
+        size.height,
+      );
+    }
+
+    // Check if mouse is within this element's bounds
+    bool isWithinBounds = elementBounds?.contains(mousePos) ?? true;
+
+    if (!isWithinBounds) {
+      return false; // Mouse is outside this element
+    }
+
+    // Try to dispatch to children first (depth-first, but only if within their bounds)
+    bool handled = false;
+
+    // Calculate offset for children
+    Offset childrenOffset = currentOffset;
+    if (element is RenderObjectElement && elementBounds != null) {
+      // Use the element's actual position for its children
+      childrenOffset = Offset(elementBounds.left, elementBounds.top);
+    }
+
+    // Visit children in reverse order to respect visual stacking
+    final children = <Element>[];
+    element.visitChildren((child) {
+      children.add(child);
+    });
+
+    for (final child in children.reversed) {
+      if (!handled) {
+        handled = _dispatchMouseWheelAtPosition(
+            child, event, mousePos, childrenOffset);
+      }
+    }
+
+    // If no child handled it and this element's render object is scrollable, handle it here
+    if (!handled &&
+        renderObject != null &&
+        renderObject is ScrollableRenderObjectMixin) {
+      final scrollableRenderObject =
+          renderObject as ScrollableRenderObjectMixin;
+      handled = scrollableRenderObject.handleMouseWheel(event);
+    }
+
+    return handled;
   }
 
   /// After [drawFrame] finalised the tree, some

@@ -665,6 +665,10 @@ class RenderListViewport extends RenderObject with ScrollableRenderObjectMixin {
 
   @override
   bool handleMouseWheel(MouseEvent event) {
+    // Scroll chaining: report the wheel unhandled when this viewport
+    // can't consume it (no overflow or already at the edge), so an
+    // enclosing scrollable gets the event instead.
+    final before = _controller.offset;
     // Only handle vertical scroll for vertical ScrollViews
     // and horizontal scroll for horizontal ScrollViews
     if (_scrollDirection == Axis.vertical) {
@@ -675,7 +679,7 @@ class RenderListViewport extends RenderObject with ScrollableRenderObjectMixin {
         } else {
           _controller.scrollUp(3.0); // Normal behavior
         }
-        return true;
+        return _controller.offset != before;
       } else if (event.button == MouseButton.wheelDown) {
         // In reverse mode, invert the scroll direction
         if (_reverse) {
@@ -683,7 +687,7 @@ class RenderListViewport extends RenderObject with ScrollableRenderObjectMixin {
         } else {
           _controller.scrollDown(3.0); // Normal behavior
         }
-        return true;
+        return _controller.offset != before;
       }
     } else {
       // For horizontal scroll, we might want to handle horizontal wheel events
@@ -694,14 +698,14 @@ class RenderListViewport extends RenderObject with ScrollableRenderObjectMixin {
         } else {
           _controller.scrollUp(3.0);
         }
-        return true;
+        return _controller.offset != before;
       } else if (event.button == MouseButton.wheelDown) {
         if (_reverse) {
           _controller.scrollUp(3.0);
         } else {
           _controller.scrollDown(3.0);
         }
-        return true;
+        return _controller.offset != before;
       }
     }
 

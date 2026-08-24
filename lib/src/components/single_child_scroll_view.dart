@@ -216,25 +216,32 @@ class RenderSingleChildViewport extends RenderObject
 
   @override
   bool handleMouseWheel(MouseEvent event) {
+    // Scroll chaining: when this viewport can't consume the wheel
+    // delta (no overflow, or already at the edge the wheel pushes
+    // toward), report the event unhandled so an enclosing scrollable
+    // (e.g. a nested sidebar list inside a box's scroll area) gets
+    // it. `jumpTo` clamps, so comparing before/after offsets tells us
+    // whether this viewport actually moved.
+    final before = _controller.offset;
     // Only handle vertical scroll for vertical ScrollViews
     // and horizontal scroll for horizontal ScrollViews
     if (_scrollDirection == Axis.vertical) {
       if (event.button == MouseButton.wheelUp) {
         _controller.scrollUp(3.0); // Scroll 3 lines
-        return true;
+        return _controller.offset != before;
       } else if (event.button == MouseButton.wheelDown) {
         _controller.scrollDown(3.0); // Scroll 3 lines
-        return true;
+        return _controller.offset != before;
       }
     } else {
       // For horizontal scroll, we might want to handle horizontal wheel events
       // but for now just handle vertical wheel as horizontal scroll
       if (event.button == MouseButton.wheelUp) {
         _controller.scrollUp(3.0);
-        return true;
+        return _controller.offset != before;
       } else if (event.button == MouseButton.wheelDown) {
         _controller.scrollDown(3.0);
-        return true;
+        return _controller.offset != before;
       }
     }
 
