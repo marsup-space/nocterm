@@ -7,24 +7,19 @@ void main() {
       final sparkles = '✨';
       final sparklesCode = sparkles.runes.first;
 
-      // ✨ is U+2728
+      // ✨ is U+2728 — Emoji_Presentation=Yes per UTS#51.
       expect(sparklesCode, equals(0x2728));
 
-      // Should have width of 2 (double-width)
+      // It is a 2-cell emoji even bare; FE0F is a no-op.
       expect(UnicodeWidth.runeWidth(sparklesCode), equals(2));
-
-      // String width should also be 2
       expect(UnicodeWidth.stringWidth(sparkles), equals(2));
+      expect(UnicodeWidth.stringWidth('\u2728\uFE0F'), equals(2));
     });
 
     test('common emoji widths', () {
       final emojis = {
-        '✨': 2, // Sparkles
-        '⭐': 2, // Star
         '💫': 2, // Dizzy
         '🌟': 2, // Glowing star
-        '☀': 2, // Sun
-        '☁': 2, // Cloud
         '🚀': 2, // Rocket
         '💻': 2, // Computer
         '🎯': 2, // Target
@@ -38,6 +33,36 @@ void main() {
           reason: 'Emoji $emoji should have width $expectedWidth',
         );
       });
+    });
+
+    test('BMP emoji candidates follow emoji presentation', () {
+      // Emoji_Presentation=No characters render as 1-cell text glyphs
+      // when bare, and as 2-cell emoji with U+FE0F. Only the sun/cloud
+      // family qualifies among the BMP emoji candidates.
+      final bareNarrow = ['☀', '☁', '☂', '☃'];
+      for (final ch in bareNarrow) {
+        expect(
+          UnicodeWidth.stringWidth(ch),
+          equals(1),
+          reason: 'Bare $ch (text presentation) should be width 1',
+        );
+        expect(
+          UnicodeWidth.stringWidth(ch + '\uFE0F'),
+          equals(2),
+          reason: '$ch + FE0F (emoji presentation) should be width 2',
+        );
+      }
+
+      // Emoji_Presentation=Yes characters render as 2-cell emoji even
+      // when bare — this includes ✨⭐❌✅☕⛅ (all Yes per emoji-data.txt).
+      final bareWide = ['⌚', '⏰', '⏩', '◾', '✨', '⭐', '❌', '✅', '☕', '⛅'];
+      for (final ch in bareWide) {
+        expect(
+          UnicodeWidth.stringWidth(ch),
+          equals(2),
+          reason: 'Bare $ch (emoji presentation by default) should be width 2',
+        );
+      }
     });
 
     test('ASCII character widths', () {
@@ -191,11 +216,12 @@ void main() {
     test('mixed string widths', () {
       final testCases = {
         'Hello World': 11, // All ASCII
-        '✨ Features:': 12, // Emoji (2) + space (1) + ASCII (9)
+        '✨ Features:': 12, // ✨ is emoji presentation (2) + space + 9
+        '\u2728\uFE0F Features:': 12, // FE0F is a no-op — already 2
         'Hello 🌍 World': 14, // ASCII (6) + emoji (2) + ASCII (6)
         'Mixed 💻 text': 13, // ASCII (6) + emoji (2) + ASCII (5)
         '🚀 Rocket': 9, // Emoji (2) + space (1) + ASCII (6)
-        'Code 💻 + Coffee ☕ = 🎯': 24, // Complex mix
+        'Code 💻 + Coffee ☕ = 🎯': 24, // Complex mix (☕ is emoji presentation: 2)
         '中文text': 8, // CJK (4) + ASCII (4)
       };
 
@@ -278,7 +304,7 @@ void main() {
     test('text alignment calculation', () {
       // Test that we can calculate proper alignment
       final text1 = 'Hello World!'; // 12 chars, 12 width
-      final text2 = '✨ Features:'; // 11 chars, 12 width
+      final text2 = '✨ Features:'; // ✨ is emoji presentation: 12 width
 
       expect(text1.length, equals(12));
       expect(UnicodeWidth.stringWidth(text1), equals(12));
@@ -286,13 +312,13 @@ void main() {
       expect(text2.length, equals(11));
       expect(UnicodeWidth.stringWidth(text2), equals(12));
 
-      // Both should center the same in a 45-width container
+      // Centering offsets in a 45-width container.
       final containerWidth = 45;
       final offset1 = (containerWidth - UnicodeWidth.stringWidth(text1)) ~/ 2;
       final offset2 = (containerWidth - UnicodeWidth.stringWidth(text2)) ~/ 2;
 
-      expect(offset1, equals(offset2));
       expect(offset1, equals(16)); // (45 - 12) / 2 = 16.5 -> 16
+      expect(offset2, equals(16)); // (45 - 12) / 2 = 16.5 -> 16
     });
 
     test('East Asian Ambiguous punctuation stays single-width', () {

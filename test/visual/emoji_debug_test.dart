@@ -68,31 +68,80 @@ void main() {
       }
     });
 
-    test('symbols that are already emoji (no FE0F needed) should have width 2',
-        () {
-      // These symbols are emoji by default and don't need FE0F
-      final defaultEmoji = {
+    test('emoji presentation by default vs text presentation by default', () {
+      // Per UTS#51 emoji-data.txt, ⭐ ✨ ⚡ ⛔ ⬛ ⬜ ✅ ❌ are all
+      // Emoji_Presentation=Yes — they render as 2-cell emoji even bare
+      // (no FE0F needed). Terminals (iTerm2, Ghostty, kitty) follow
+      // this; mis-measuring them as 1 cell breaks table/box alignment.
+      final emojiByDefaultBmp = {
         "⭐": "Star",
         "✨": "Sparkles",
         "⚡": "High voltage",
         "⛔": "No entry",
         "⬛": "Black square",
         "⬜": "White square",
-        "🔶": "Orange diamond",
-        "🔷": "Blue diamond",
         "✅": "Check mark button",
         "❌": "Cross mark",
+        "❗": "Exclamation mark",
+        "❓": "Question mark",
       };
 
-      for (final entry in defaultEmoji.entries) {
+      for (final entry in emojiByDefaultBmp.entries) {
         final symbol = entry.key;
         final name = entry.value;
-        final width = UnicodeWidth.stringWidth(symbol);
-
         expect(
-          width,
+          UnicodeWidth.stringWidth(symbol),
           equals(2),
-          reason: '$name ($symbol) should have width 2, got $width',
+          reason:
+              '$name ($symbol) is Emoji_Presentation=Yes → width 2 even bare',
+        );
+        // FE0F is a no-op here — already emoji presentation.
+        expect(
+          UnicodeWidth.stringWidth(symbol + '\uFE0F'),
+          equals(2),
+          reason: '$name ($symbol) with FE0F stays width 2',
+        );
+      }
+
+      // Text-presentation-by-default characters (Emoji=Yes but
+      // Emoji_Presentation=No) ARE 1 cell bare and need FE0F to go
+      // emoji — the sun/cloud family plus the warning/heart set.
+      final textByDefault = {
+        "☀": "Sun",
+        "☁": "Cloud",
+        "☂": "Umbrella",
+        "☃": "Snowman",
+        "⚠": "Warning sign",
+        "❤": "Heart",
+        "✔": "Heavy check mark",
+      };
+      for (final entry in textByDefault.entries) {
+        final symbol = entry.key;
+        final name = entry.value;
+        expect(
+          UnicodeWidth.stringWidth(symbol),
+          equals(1),
+          reason: '$name ($symbol) is text-presentation by default → width 1',
+        );
+        expect(
+          UnicodeWidth.stringWidth(symbol + '\uFE0F'),
+          equals(2),
+          reason: '$name ($symbol) with FE0F upgrades to width 2',
+        );
+      }
+
+      // SMP emoji are Emoji_Presentation=Yes as well.
+      final emojiByDefaultSmp = {
+        "🔶": "Orange diamond",
+        "🔷": "Blue diamond",
+      };
+      for (final entry in emojiByDefaultSmp.entries) {
+        final symbol = entry.key;
+        final name = entry.value;
+        expect(
+          UnicodeWidth.stringWidth(symbol),
+          equals(2),
+          reason: '$name ($symbol) is emoji presentation by default',
         );
       }
     });

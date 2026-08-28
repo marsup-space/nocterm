@@ -26,24 +26,28 @@ void main() {
       print(
           '\nBUG: ✓ is currently width ${UnicodeWidth.stringWidth(checkmark)}, but should be 1');
 
-      // This will fail with current implementation
+      // ✓ (U+2713) is a text symbol — width 1.
       expect(UnicodeWidth.stringWidth(checkmark), equals(1),
           reason: 'Check mark (✓) should be width 1, not emoji width');
 
-      // This should pass
+      // ✅ (U+2705) has Emoji_Presentation=Yes per UTS#51 — it is a
+      // 2-cell emoji even bare (no FE0F needed). This is what real
+      // terminals render; measuring it as 1 breaks table alignment.
       expect(UnicodeWidth.stringWidth(checkmarkButton), equals(2),
-          reason: 'Check mark button (✅) should be width 2 as it is an emoji');
+          reason: 'Check mark button (✅) is emoji presentation: width 2');
+      expect(UnicodeWidth.stringWidth('\u2705\uFE0F'), equals(2),
+          reason: '✅ with FE0F stays emoji presentation: width 2');
     });
 
     test('other common checkmark-like symbols', () {
       final symbols = {
         '✓': 1, // U+2713 Check mark
         '✔': 1, // U+2714 Heavy check mark
-        '✅': 2, // U+2705 Check mark button (emoji)
+        '✅': 2, // U+2705 Check mark button — Emoji_Presentation=Yes
         '✗': 1, // U+2717 Ballot X
         '✘': 1, // U+2718 Heavy ballot X
         '✖': 1, // U+2716 Heavy multiplication X
-        '❌': 2, // U+274C Cross mark (emoji)
+        '❌': 2, // U+274C Cross mark — Emoji_Presentation=Yes
       };
 
       symbols.forEach((symbol, expectedWidth) {

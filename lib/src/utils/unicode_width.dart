@@ -101,6 +101,30 @@ class UnicodeWidth {
     // text, which is the common case for this framework.
     final width = unicodeV11.wcwidth(rune);
 
+    // BMP emoji candidates (Misc Symbols ☀⛅, Dingbats ✨❌, and a few
+    // neighbours like ⭐⬛). Members with Emoji_Presentation=No render
+    // as ONE-cell text glyphs in modern terminals (iTerm2, kitty,
+    // WezTerm, xterm.js) unless followed by U+FE0F — the grapheme-level
+    // check upgrades those to width 2. The EAW table marks several of
+    // them Wide, but terminals key emoji widths off emoji presentation,
+    // not EAW, so trust Emoji_Presentation here. Characters with
+    // Emoji_Presentation=Yes (⌚⏰⏩◽…) render as emoji by default and
+    // stay width 2 even when bare.
+    if (rune < 0x1F000 && _isBmpEmoji(rune)) {
+      return _isEmojiPresentationByDefault(rune) ? 2 : 1;
+    }
+
+    // CJK-block emoji candidates (〽㊗㊙ — U+303D/3297/3299) are Emoji=Yes
+    // but Emoji_Presentation=No per emoji-data.txt. The EAW table
+    // classifies them Wide (they sit in CJK blocks), but terminals
+    // render them as 1-cell text glyphs when bare. Trust presentation.
+    // U+3030 (〰 wavy dash) is deliberately EXCLUDED: it is genuine
+    // fullwidth CJK punctuation whose wide EAW is correct for text
+    // layout — the CJK punctuation suite depends on it being 2.
+    if (rune == 0x303D || rune == 0x3297 || rune == 0x3299) {
+      return 1;
+    }
+
     // Some characters are visually 2 cells (emoji presentation) but
     // the East Asian Width property classifies them as Narrow or
     // Neutral - regional indicators 0x1F1E6-0x1F1FF, certain
@@ -111,6 +135,56 @@ class UnicodeWidth {
     }
 
     return width;
+  }
+
+  /// Check if a BMP rune is an emoji candidate (Emoji=Yes). These are
+  /// the characters whose display width depends on emoji presentation:
+  /// bare (text presentation) they are 1 cell; with U+FE0F or default
+  /// emoji presentation they are 2 cells.
+  static bool _isBmpEmoji(int rune) {
+    return _isMiscSymbolEmoji(rune) ||
+        _isDingbatEmoji(rune) ||
+        rune == 0x231A ||
+        rune == 0x231B || // Watch, hourglass
+        rune == 0x23E9 ||
+        rune == 0x23EA || // Fast forward, rewind
+        rune == 0x23EB ||
+        rune == 0x23EC || // Up/down arrows
+        rune == 0x23F0 ||
+        rune == 0x23F3 || // Alarm clock, hourglass flowing
+        (rune >= 0x25FB && rune <= 0x25FE) || // Squares
+        (rune >= 0x2B1B && rune <= 0x2B1C) || // Black/white squares
+        rune == 0x2B50 || // Star
+        rune == 0x2B55; // Heavy circle
+  }
+
+  /// Check if a BMP emoji candidate has Emoji_Presentation=Yes (per
+  /// UTS#51 / emoji-data.txt), i.e. it renders as a width-2 emoji even
+  /// without a U+FE0F variation selector.
+  ///
+  /// The set is the union of the Dingbats / Misc-Symbols emoji
+  /// allowlists MINUS the handful that are Emoji=Yes but
+  /// Emoji_Presentation=No (☀☁☂☃ — text by default, emoji only with
+  /// FE0F), plus the watch/arrow/square block that isn't in either
+  /// allowlist. Data verified against emoji-data.txt 15.1:
+  /// every rune in `_isMiscSymbolEmoji` and `_isDingbatEmoji` except
+  /// 0x2600-0x2603 has Emoji_Presentation=Yes.
+  static bool _isEmojiPresentationByDefault(int rune) {
+    // The few BMP emoji candidates that are text-presentation by
+    // default (Emoji=Yes, Emoji_Presentation=No).
+    if (rune >= 0x2600 && rune <= 0x2603) return false; // ☀☁☂☃
+
+    return _isMiscSymbolEmoji(rune) ||
+        _isDingbatEmoji(rune) ||
+        rune == 0x231A || // ⌚ Watch
+        rune == 0x231B || // ⌛ Hourglass done
+        (rune >= 0x23E9 && rune <= 0x23EC) || // ⏩⏪⏫⏬
+        rune == 0x23F0 || // ⏰ Alarm clock
+        rune == 0x23F3 || // ⏳ Hourglass not done
+        (rune >= 0x25FD && rune <= 0x25FE) || // ◽◾ (25FB/25FC are text-default)
+        (rune >= 0x2B1B && rune <= 0x2B1C) || // ⬛⬜
+        rune == 0x2B50 || // ⭐ Star
+        rune == 0x2B55; // ⭕ Heavy circle
   }
 
   /// Check if a rune is always zero-width regardless of context
@@ -240,7 +314,17 @@ class UnicodeWidth {
 
     for (int i = 0; i < runes.length; i++) {
       final rune = runes[i];
-      final width = runeWidth(rune);
+      var width = runeWidth(rune);
+
+      // A U+FE0F variation selector upgrades a BMP emoji candidate to
+      // emoji presentation (2 cells) — mirror graphemeWidth here so
+      // e.g. "☀️" measures 2 even though bare "☀" measures 1.
+      if (width == 1 &&
+          i + 1 < runes.length &&
+          runes[i + 1] == 0xFE0F &&
+          _isBmpEmoji(rune)) {
+        width = 2;
+      }
 
       // Skip zero-width characters for positioning
       if (width > 0) {

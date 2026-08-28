@@ -23,19 +23,25 @@ void main() {
         '♦': 'Black diamond suit',
       };
 
-      // Emoji symbols - should be width 2
-      final emojiSymbols = {
-        '✅': 'Check mark button (emoji)',
-        '❌': 'Cross mark (emoji)',
-        '❎': 'Cross mark button (emoji)',
+      // Emoji_Presentation=Yes characters — 2-cell emoji even bare
+      // (FE0F is a no-op). Per UTS#51 emoji-data.txt.
+      final emojiByDefault = {
+        '✅': 'Check mark button',
+        '❌': 'Cross mark',
+        '❎': 'Cross mark button',
         '✨': 'Sparkles',
-        '⭐': 'Star (emoji)',
-        '☀': 'Sun',
-        '☁': 'Cloud',
-        '☂': 'Umbrella',
+        '⭐': 'Star',
         '⚡': 'High voltage',
         '⚽': 'Soccer ball',
         '⛄': 'Snowman',
+      };
+
+      // Emoji_Presentation=No characters — 1-cell text glyphs bare;
+      // with U+FE0F they render as 2-cell emoji.
+      final textByDefault = {
+        '☀': 'Sun',
+        '☁': 'Cloud',
+        '☂': 'Umbrella',
       };
 
       print('\n=== TEXT SYMBOLS (width 1) ===');
@@ -48,14 +54,32 @@ void main() {
         expect(width, equals(1), reason: '$name should be width 1');
       });
 
-      print('\n=== EMOJI SYMBOLS (width 2) ===');
-      emojiSymbols.forEach((symbol, name) {
-        final width = UnicodeWidth.stringWidth(symbol);
+      print('\n=== EMOJI BY DEFAULT: bare (width 2) ===');
+      emojiByDefault.forEach((symbol, name) {
+        final bare = UnicodeWidth.stringWidth(symbol);
+        final emoji = UnicodeWidth.stringWidth(symbol + '\uFE0F');
         final code = symbol.runes.first;
         print(
             '$symbol U+${code.toRadixString(16).toUpperCase().padLeft(4, '0')} '
-            'width=$width $name');
-        expect(width, equals(2), reason: '$name should be width 2');
+            'bare=$bare with-FE0F=$emoji $name');
+        expect(bare, equals(2),
+            reason: '$name is Emoji_Presentation=Yes → width 2 even bare');
+        expect(emoji, equals(2),
+            reason: '$name with FE0F stays width 2');
+      });
+
+      print('\n=== TEXT BY DEFAULT: bare (width 1) vs +FE0F (width 2) ===');
+      textByDefault.forEach((symbol, name) {
+        final bare = UnicodeWidth.stringWidth(symbol);
+        final emoji = UnicodeWidth.stringWidth(symbol + '\uFE0F');
+        final code = symbol.runes.first;
+        print(
+            '$symbol U+${code.toRadixString(16).toUpperCase().padLeft(4, '0')} '
+            'bare=$bare with-FE0F=$emoji $name');
+        expect(bare, equals(1),
+            reason: '$name is text-presentation by default → width 1');
+        expect(emoji, equals(2),
+            reason: '$name with FE0F upgrades to width 2');
       });
     });
 
@@ -79,9 +103,12 @@ void main() {
       expect(UnicodeWidth.stringWidth('✗ Failed'), equals(8));
       expect(UnicodeWidth.stringWidth('⚠ Warning'), equals(9));
 
-      // Emoji symbols add extra width (emoji is 2, so +1 compared to text symbol)
+      // ✅/❌ are emoji presentation (width 2) even bare.
       expect(UnicodeWidth.stringWidth('✅ Emoji Success'), equals(16));
       expect(UnicodeWidth.stringWidth('❌ Emoji Failed'), equals(15));
+      // FE0F is a no-op — already emoji presentation.
+      expect(UnicodeWidth.stringWidth('\u2705\uFE0F Emoji Success'), equals(16));
+      expect(UnicodeWidth.stringWidth('\u274C\uFE0F Emoji Failed'), equals(15));
     });
 
     test('demonstrates the fix for layout overflow issues', () {
