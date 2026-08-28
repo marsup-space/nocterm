@@ -331,7 +331,6 @@ class MDownRenderer {
       'sql',
       // Added
       'csharp',
-      'c',
       'cpp',
       'ruby',
       'php',
@@ -352,12 +351,29 @@ class MDownRenderer {
     ]);
   }
 
+  /// Fence-tag aliases for languages we highlight with a different
+  /// grammar (no standalone `c` grammar ships — C is covered by cpp).
+  static const _languageAliases = <String, String>{
+    'c': 'cpp',
+    'c++': 'cpp',
+    'cs': 'csharp',
+    'c#': 'csharp',
+    'patch': 'diff',
+    'shell': 'bash',
+    'sh': 'bash',
+    'zsh': 'bash',
+    'yml': 'yaml',
+    'md': 'markdown',
+    'golang': 'go',
+  };
+
   tm.Highlighter? _getHighlighter(String language) {
-    final cached = _highlighterCache[language];
+    final resolved = _languageAliases[language] ?? language;
+    final cached = _highlighterCache[resolved];
     if (cached != null) return cached;
 
-    if (tm.Highlighter.isLanguageLoaded(language)) {
-      return _highlighterCache[language] = tm.Highlighter(language: language);
+    if (tm.Highlighter.isLanguageLoaded(resolved)) {
+      return _highlighterCache[resolved] = tm.Highlighter(language: resolved);
     }
     return null;
   }
