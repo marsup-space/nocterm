@@ -102,27 +102,28 @@ class UnicodeWidth {
     final width = unicodeV11.wcwidth(rune);
 
     // BMP emoji candidates (Misc Symbols ☀⛅, Dingbats ✨❌, and a few
-    // neighbours like ⭐⬛). Members with Emoji_Presentation=No render
-    // as ONE-cell text glyphs in modern terminals (iTerm2, kitty,
-    // WezTerm, xterm.js) unless followed by U+FE0F — the grapheme-level
-    // check upgrades those to width 2. The EAW table marks several of
-    // them Wide, but terminals key emoji widths off emoji presentation,
-    // not EAW, so trust Emoji_Presentation here. Characters with
-    // Emoji_Presentation=Yes (⌚⏰⏩◽…) render as emoji by default and
-    // stay width 2 even when bare.
-    if (rune < 0x1F000 && _isBmpEmoji(rune)) {
+    // neighbours like ⭐⬛ all sit in EAW-Narrow/Ambiguous blocks).
+    // For these, presentation decides the width: members with
+    // Emoji_Presentation=No render as ONE-cell text glyphs in modern
+    // terminals (iTerm2, kitty, WezTerm, xterm.js) unless followed by
+    // U+FE0F — the grapheme-level check upgrades those to width 2.
+    // Characters with Emoji_Presentation=Yes (⌚⏰⏩◽…) render as emoji
+    // by default and stay width 2 even when bare.
+    //
+    // NB: this OVERRIDES the EAW lookup below only where EAW says 1.
+    // CJK-block emoji candidates (〰〽㊗㊙ — U+3030/303D/3297/3299) are
+    // also Emoji=Yes + Emoji_Presentation=No, but they are EAW=Wide:
+    // the terminal lays them out as full-width glyphs regardless of
+    // emoji presentation, so their width stays 2 (the EAW value returned
+    // at the bottom of this function). Overriding those to 1 — as a
+    // literal reading of emoji-data.txt suggests — desynchronises the
+    // measurement from what the terminal actually draws, and every
+    // subsequent repaint of the line shifts and leaves stale glyphs
+    // behind when scrolling.
+    if (rune < 0x1F000 &&
+        _isBmpEmoji(rune) &&
+        width == 1) {
       return _isEmojiPresentationByDefault(rune) ? 2 : 1;
-    }
-
-    // CJK-block emoji candidates (〽㊗㊙ — U+303D/3297/3299) are Emoji=Yes
-    // but Emoji_Presentation=No per emoji-data.txt. The EAW table
-    // classifies them Wide (they sit in CJK blocks), but terminals
-    // render them as 1-cell text glyphs when bare. Trust presentation.
-    // U+3030 (〰 wavy dash) is deliberately EXCLUDED: it is genuine
-    // fullwidth CJK punctuation whose wide EAW is correct for text
-    // layout — the CJK punctuation suite depends on it being 2.
-    if (rune == 0x303D || rune == 0x3297 || rune == 0x3299) {
-      return 1;
     }
 
     // Some characters are visually 2 cells (emoji presentation) but

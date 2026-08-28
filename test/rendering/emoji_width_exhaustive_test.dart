@@ -192,19 +192,20 @@ void main() {
       0x2B1C: 2,
       0x2B50: 2,
       0x2B55: 2,
-      0x3030: 1,
-      0x303D: 1,
-      0x3297: 1,
-      0x3299: 1,
+      0x3030: 2,
+      0x303D: 2,
+      0x3297: 2,
+      0x3299: 2,
     };
 
-    // U+3030 (〰 wavy dash) is a deliberate, documented divergence from
-    // emoji-data.txt: it is Emoji_Presentation=No (would be width 1) but
-    // it is ALSO genuine fullwidth CJK punctuation, and the CJK
-    // punctuation suite depends on its wide EAW (width 2). We keep the
-    // wide measurement — in practice 〰 appears as CJK punctuation, not
-    // as an emoji, so the wide width is the useful one.
-    const knownDivergences = {0x3030};
+    // The four CJK-block candidates (〰〽㊗㊙) are Emoji_Presentation=No
+    // in emoji-data.txt, which would suggest width 1. They are HOWEVER
+    // EAW=Wide, and the terminal draws them full-width regardless of
+    // emoji presentation — so the implementation (and this table)
+    // keeps width 2. This is not a divergence from the width the user
+    // sees; it is a divergence from a naive reading of emoji-data.txt.
+    // See the comment in UnicodeWidth.runeWidth.
+    const knownDivergences = <int>{};
 
     test('every BMP emoji codepoint matches its Emoji_Presentation width', () {
       final failures = <String>[];
