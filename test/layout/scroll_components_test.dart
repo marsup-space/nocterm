@@ -384,8 +384,15 @@ void main() {
             ),
           );
 
-          // Verify scrollbar is visible
-          expect(tester.terminalState, containsText('│'));
+          // Verify scrollbar is visible (thumb or, when at the very top
+          // with a tiny viewport fraction, the arrow glyphs). The track
+          // no longer paints a background │ column.
+          expect(
+            tester.terminalState.containsText('█') ||
+                tester.terminalState.containsText('▲') ||
+                tester.terminalState.containsText('▼'),
+            isTrue,
+          );
 
           // Scroll to middle
           controller.jumpTo(25);

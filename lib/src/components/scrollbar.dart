@@ -485,9 +485,12 @@ class RenderScrollbar extends RenderObject
       thumbOffset = trackStart + scrollOffset * (trackHeight - thumbHeight);
     }
 
-    final idleTrackColor = _dimColor(_trackColor, 0.2);
-    final idleThumbColor = _dimColor(_thumbColor, 0.3);
-    final hoverThumbColor = _dimColor(_thumbColor, 0.7);
+    // State alphas applied to the opaque theme colors. Keep these high
+    // enough that the theme hue survives the alpha blend against the
+    // terminal background — factors below ~0.4 collapse any theme to a
+    // uniform grey (see RenderScrollbar callers passing full-alpha colors).
+    final idleThumbColor = _dimColor(_thumbColor, 0.45);
+    final hoverThumbColor = _dimColor(_thumbColor, 0.8);
     final dragThumbColor = _thumbColor;
 
     final activeThumbColor = _isDragging
@@ -496,17 +499,10 @@ class RenderScrollbar extends RenderObject
             ? hoverThumbColor
             : idleThumbColor;
 
-    final activeTrackColor = _isHovered || _isDragging
-        ? _dimColor(_trackColor, 0.4)
-        : idleTrackColor;
-
-    for (int y = 0; y < scrollbarHeight.toInt(); y++) {
-      canvas.drawText(
-        offset + Offset(scrollbarX, y.toDouble()),
-        '│',
-        style: TextStyle(color: activeTrackColor),
-      );
-    }
+    // No track line: the scrollbar column renders only the thumb (plus
+    // arrows at the ends and any annotated dots the owner adds).
+    // [_trackColor] is kept on the render object for API compatibility
+    // but deliberately unused.
 
     if (hasArrows) {
       final topArrowActive =
@@ -517,18 +513,20 @@ class RenderScrollbar extends RenderObject
       final arrowColor =
           _isHovered || _isDragging ? hoverThumbColor : idleThumbColor;
 
-      canvas.drawText(
-        offset + Offset(scrollbarX, 0),
-        topArrowActive ? '▲' : '│',
-        style: TextStyle(color: topArrowActive ? arrowColor : activeTrackColor),
-      );
-
-      canvas.drawText(
-        offset + Offset(scrollbarX, scrollbarHeight - 1),
-        bottomArrowActive ? '▼' : '│',
-        style:
-            TextStyle(color: bottomArrowActive ? arrowColor : activeTrackColor),
-      );
+      if (topArrowActive) {
+        canvas.drawText(
+          offset + Offset(scrollbarX, 0),
+          '▲',
+          style: TextStyle(color: arrowColor),
+        );
+      }
+      if (bottomArrowActive) {
+        canvas.drawText(
+          offset + Offset(scrollbarX, scrollbarHeight - 1),
+          '▼',
+          style: TextStyle(color: arrowColor),
+        );
+      }
     }
 
     final thumbStart = thumbOffset.toInt();

@@ -57,7 +57,9 @@ void main() {
           final cell = tester.terminalState.getCellAt(expectedX, y);
           final char = cell?.char ?? ' ';
           columnChars.write(char);
-          if (char == '│' || char == '█' || char == '▲' || char == '▼') {
+          // The track no longer paints a background │ column; the
+          // scrollbar is visible via thumb / arrow glyphs only.
+          if (char == '█' || char == '▲' || char == '▼') {
             foundScrollbar = true;
           }
         }
