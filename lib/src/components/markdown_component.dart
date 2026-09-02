@@ -348,6 +348,7 @@ class MDownRenderer {
       'elixir',
       'erlang',
       'clojure',
+      'v',
     ]);
   }
 
