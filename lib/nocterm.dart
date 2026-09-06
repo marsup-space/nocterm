@@ -23,6 +23,7 @@ export 'src/binding/scheduler_binding.dart';
 export 'src/binding/nocterm_scheduler.dart';
 export 'src/binding/scheduler_phase.dart';
 export 'src/components/basic.dart';
+export 'src/components/wrap.dart';
 export 'src/components/builder.dart';
 export 'src/components/focusable.dart' show Focusable, Focus, KeyEventHandler;
 export 'src/components/focus_scope.dart';

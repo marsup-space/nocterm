@@ -18,13 +18,15 @@ class RenderFlex extends RenderObject
     required TextDirection textDirection,
     required VerticalDirection verticalDirection,
     TextBaseline? textBaseline,
+    bool clampCrossAxisDividers = false,
   })  : _direction = direction,
         _mainAxisAlignment = mainAxisAlignment,
         _mainAxisSize = mainAxisSize,
         _crossAxisAlignment = crossAxisAlignment,
         _textDirection = textDirection,
         _verticalDirection = verticalDirection,
-        _textBaseline = textBaseline;
+        _textBaseline = textBaseline,
+        _clampCrossAxisDividers = clampCrossAxisDividers;
 
   /// Set during layout if overflow occurred on the main axis.
   double _overflow = 0;
@@ -93,6 +95,21 @@ class RenderFlex extends RenderObject
   set textBaseline(TextBaseline? value) {
     if (_textBaseline == value) return;
     _textBaseline = value;
+    markNeedsLayout();
+  }
+
+  /// When true (vertical direction only, non-stretch), horizontal
+  /// [RenderDivider] children are excluded from the column's content-width
+  /// calculation and then re-laid out with a tight width equal to that
+  /// content width. Dividers normally expand to the incoming max width,
+  /// which forces any shrink-wrapped container (e.g. an adaptive-width
+  /// Card) to fill the whole terminal. Opt-in so existing screens that
+  /// rely on full-width dividers are unaffected.
+  bool _clampCrossAxisDividers;
+  bool get clampCrossAxisDividers => _clampCrossAxisDividers;
+  set clampCrossAxisDividers(bool value) {
+    if (_clampCrossAxisDividers == value) return;
+    _clampCrossAxisDividers = value;
     markNeedsLayout();
   }
 
@@ -219,6 +236,16 @@ class RenderFlex extends RenderObject
     }
 
     // First pass: layout non-flexible children and count total flex
+    //
+    // When clampCrossAxisDividers is active (vertical, non-stretch),
+    // horizontal dividers are laid out normally but excluded from the
+    // content-width calculation — they get re-laid out below with a
+    // tight width equal to the widest non-divider child.
+    final clampDividers = _clampCrossAxisDividers &&
+        direction == Axis.vertical &&
+        crossAxisAlignment != CrossAxisAlignment.stretch &&
+        constraints.maxWidth.isFinite;
+    final dividerChildren = <RenderObject>[];
     for (final child in children) {
       final int flex = _getFlex(child);
       if (flex > 0) {
@@ -229,8 +256,12 @@ class RenderFlex extends RenderObject
         child.layout(childConstraints, parentUsesSize: true);
         final childSize = child.size;
         allocatedSize += _getMainAxisExtent(childSize);
-        maxCrossAxisExtent =
-            math.max(maxCrossAxisExtent, _getCrossAxisExtent(childSize));
+        if (clampDividers && child is RenderDivider) {
+          dividerChildren.add(child);
+        } else {
+          maxCrossAxisExtent =
+              math.max(maxCrossAxisExtent, _getCrossAxisExtent(childSize));
+        }
       }
     }
 
@@ -312,6 +343,23 @@ class RenderFlex extends RenderObject
           : constraints.maxWidth;
     } else {
       crossAxisExtent = maxCrossAxisExtent;
+    }
+
+    // Re-layout clamped dividers with a tight width equal to the content
+    // width, so they span exactly the column (not the whole terminal).
+    // A column of only dividers keeps the old full-width behavior.
+    if (clampDividers && dividerChildren.isNotEmpty) {
+      final double dividerWidth =
+          crossAxisExtent > 0 ? crossAxisExtent : constraints.maxWidth;
+      for (final divider in dividerChildren) {
+        divider.layout(
+          BoxConstraints(minWidth: dividerWidth, maxWidth: dividerWidth),
+          parentUsesSize: true,
+        );
+        maxCrossAxisExtent =
+            math.max(maxCrossAxisExtent, _getCrossAxisExtent(divider.size));
+        crossAxisExtent = maxCrossAxisExtent;
+      }
     }
 
     size = constraints.constrain(_getSize(mainAxisExtent, crossAxisExtent));

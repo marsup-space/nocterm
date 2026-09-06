@@ -30,6 +30,18 @@ class FocusManager {
     }
   }
 
+  /// Release focus from the currently active focusable, returning it
+  /// to the first registered (non-disabled) focusable — typically the
+  /// main input field.
+  void unfocus() {
+    final current = _activeFocusable;
+    if (current == null) return;
+    final first = _findFirstEnabled();
+    if (first != null && first != current) {
+      requestFocus(first);
+    }
+  }
+
   void requestFocus(FocusableElement element) {
     if (_activeFocusable == element) return;
     final old = _activeFocusable;
@@ -423,8 +435,13 @@ class FocusManager {
   }
 
   FocusableElement? _findFirstEnabled() {
-    final sorted = _registered.where((e) => !e.isDisabled && e.mounted).toList()
-      ..sort((a, b) => a.depth.compareTo(b.depth));
-    return sorted.isNotEmpty ? sorted.first : null;
+    // Registration order is tree mount order, which is the intuitive
+    // fallback target for Escape: the application's primary input is
+    // normally registered first. Sorting only by depth loses that order
+    // for same-depth siblings because Set iteration is not ordered.
+    for (final element in _registered) {
+      if (!element.isDisabled && element.mounted) return element;
+    }
+    return null;
   }
 }

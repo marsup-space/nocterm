@@ -203,6 +203,7 @@ class Column extends Flex {
     super.textDirection,
     super.verticalDirection,
     super.textBaseline,
+    super.clampCrossAxisDividers,
     super.children,
   }) : super(direction: Axis.vertical);
 }
@@ -218,6 +219,7 @@ class Flex extends RenderObjectComponent {
     this.textDirection,
     this.verticalDirection = VerticalDirection.down,
     this.textBaseline,
+    this.clampCrossAxisDividers = false,
     this.children = const [],
   });
 
@@ -228,6 +230,11 @@ class Flex extends RenderObjectComponent {
   final TextDirection? textDirection;
   final VerticalDirection verticalDirection;
   final TextBaseline? textBaseline;
+
+  /// Opt into divider clamping — see
+  /// [RenderFlex.clampCrossAxisDividers]. Only meaningful for vertical
+  /// flex containers with a non-stretch cross axis alignment.
+  final bool clampCrossAxisDividers;
   final List<Component> children;
 
   @override
@@ -240,6 +247,7 @@ class Flex extends RenderObjectComponent {
       textDirection: textDirection ?? TextDirection.ltr,
       verticalDirection: verticalDirection,
       textBaseline: textBaseline,
+      clampCrossAxisDividers: clampCrossAxisDividers,
     );
   }
 
@@ -252,7 +260,8 @@ class Flex extends RenderObjectComponent {
       ..crossAxisAlignment = crossAxisAlignment
       ..textDirection = textDirection ?? TextDirection.ltr
       ..verticalDirection = verticalDirection
-      ..textBaseline = textBaseline;
+      ..textBaseline = textBaseline
+      ..clampCrossAxisDividers = clampCrossAxisDividers;
   }
 
   @override

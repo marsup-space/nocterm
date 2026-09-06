@@ -60,6 +60,39 @@ void main() {
       });
     });
 
+    test('unfocus returns focus to the first enabled focusable', () async {
+      int activeIndex = -1;
+
+      await testNocterm('unfocus returns first', (tester) async {
+        await tester.pumpComponent(
+          Column(
+            children: [
+              Focusable(
+                onKeyEvent: (_) => false,
+                child: Builder(builder: (context) {
+                  if (Focus.of(context)) activeIndex = 0;
+                  return const Text('input');
+                }),
+              ),
+              Focusable(
+                autofocus: true,
+                onKeyEvent: (_) => false,
+                child: Builder(builder: (context) {
+                  if (Focus.of(context)) activeIndex = 1;
+                  return const Text('surface');
+                }),
+              ),
+            ],
+          ),
+        );
+
+        expect(activeIndex, equals(1));
+        NoctermBinding.instance.focusManager.unfocus();
+        await tester.pump();
+        expect(activeIndex, equals(0));
+      });
+    });
+
     group('Tab navigation', () {
       test('Tab moves to next Focusable', () async {
         int activeIndex = -1;

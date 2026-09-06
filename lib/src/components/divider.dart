@@ -178,12 +178,22 @@ class RenderDivider extends RenderObject {
 
   @override
   void performLayout() {
-    size = constraints.constrain(Size(double.infinity, height));
+    // A non-flex Divider inside a Row receives unbounded horizontal
+    // constraints. It cannot claim infinity without pushing following
+    // siblings out of the visible layout; callers that need a filling
+    // divider in a Row must give it a finite slot (for example Expanded).
+    final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 0.0;
+    size = constraints.constrain(Size(width, height));
   }
 
   @override
   void paint(TerminalCanvas canvas, Offset offset) {
     super.paint(canvas, offset);
+
+    // Under unbounded width constraints (e.g. inside a Row, which passes
+    // infinite width to non-flex children) the divider has infinite
+    // width — painting it would loop forever. Draw nothing instead.
+    if (!size.width.isFinite) return;
 
     final startX = offset.dx + indent;
     final endX = offset.dx + size.width - endIndent;

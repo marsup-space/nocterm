@@ -134,6 +134,25 @@ void main() {
       );
     });
 
+    test('does not paint indefinitely under unbounded row width', () async {
+      await testNocterm('divider in row', (tester) async {
+        await tester.pumpComponent(
+          Container(
+            width: 20,
+            height: 2,
+            child: Row(
+              children: const [
+                Divider(),
+                Text('safe'),
+              ],
+            ),
+          ),
+        );
+
+        expect(tester.terminalState, containsText('safe'));
+      });
+    });
+
     test('renders horizontal divider correctly', () async {
       await testNocterm(
         'horizontal divider rendering',
