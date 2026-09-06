@@ -216,7 +216,8 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
     scheduler.cancelAll();
     _testKeyboardController.close();
     _testMouseController.close();
-    // Clear the singleton instance to allow multiple tests
+    // Clear the singleton instance to allow multiple tests.
+    // ignore: invalid_use_of_visible_for_testing_member
     NoctermBinding.resetInstance();
     _instance = null;
   }
@@ -324,8 +325,8 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
 
   /// Dispatch a mouse wheel event to scrollable RenderObjects at a
   /// specific position (mirrors the production binding).
-  bool _dispatchMouseWheelAtPosition(
-      Element element, MouseEvent event, Offset mousePos, Offset currentOffset) {
+  bool _dispatchMouseWheelAtPosition(Element element, MouseEvent event,
+      Offset mousePos, Offset currentOffset) {
     // Calculate this element's bounds if it has a render object
     Rect? elementBounds;
     RenderObject? renderObject;
