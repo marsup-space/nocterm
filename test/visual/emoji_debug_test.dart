@@ -97,7 +97,7 @@ void main() {
         );
         // FE0F is a no-op here — already emoji presentation.
         expect(
-          UnicodeWidth.stringWidth(symbol + '\uFE0F'),
+          UnicodeWidth.stringWidth('$symbol\uFE0F'),
           equals(2),
           reason: '$name ($symbol) with FE0F stays width 2',
         );
@@ -124,7 +124,7 @@ void main() {
           reason: '$name ($symbol) is text-presentation by default → width 1',
         );
         expect(
-          UnicodeWidth.stringWidth(symbol + '\uFE0F'),
+          UnicodeWidth.stringWidth('$symbol\uFE0F'),
           equals(2),
           reason: '$name ($symbol) with FE0F upgrades to width 2',
         );

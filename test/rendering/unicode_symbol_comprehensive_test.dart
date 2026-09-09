@@ -57,29 +57,27 @@ void main() {
       print('\n=== EMOJI BY DEFAULT: bare (width 2) ===');
       emojiByDefault.forEach((symbol, name) {
         final bare = UnicodeWidth.stringWidth(symbol);
-        final emoji = UnicodeWidth.stringWidth(symbol + '\uFE0F');
+        final emoji = UnicodeWidth.stringWidth('$symbol\uFE0F');
         final code = symbol.runes.first;
         print(
             '$symbol U+${code.toRadixString(16).toUpperCase().padLeft(4, '0')} '
             'bare=$bare with-FE0F=$emoji $name');
         expect(bare, equals(2),
             reason: '$name is Emoji_Presentation=Yes → width 2 even bare');
-        expect(emoji, equals(2),
-            reason: '$name with FE0F stays width 2');
+        expect(emoji, equals(2), reason: '$name with FE0F stays width 2');
       });
 
       print('\n=== TEXT BY DEFAULT: bare (width 1) vs +FE0F (width 2) ===');
       textByDefault.forEach((symbol, name) {
         final bare = UnicodeWidth.stringWidth(symbol);
-        final emoji = UnicodeWidth.stringWidth(symbol + '\uFE0F');
+        final emoji = UnicodeWidth.stringWidth('$symbol\uFE0F');
         final code = symbol.runes.first;
         print(
             '$symbol U+${code.toRadixString(16).toUpperCase().padLeft(4, '0')} '
             'bare=$bare with-FE0F=$emoji $name');
         expect(bare, equals(1),
             reason: '$name is text-presentation by default → width 1');
-        expect(emoji, equals(2),
-            reason: '$name with FE0F upgrades to width 2');
+        expect(emoji, equals(2), reason: '$name with FE0F upgrades to width 2');
       });
     });
 
@@ -107,7 +105,8 @@ void main() {
       expect(UnicodeWidth.stringWidth('✅ Emoji Success'), equals(16));
       expect(UnicodeWidth.stringWidth('❌ Emoji Failed'), equals(15));
       // FE0F is a no-op — already emoji presentation.
-      expect(UnicodeWidth.stringWidth('\u2705\uFE0F Emoji Success'), equals(16));
+      expect(
+          UnicodeWidth.stringWidth('\u2705\uFE0F Emoji Success'), equals(16));
       expect(UnicodeWidth.stringWidth('\u274C\uFE0F Emoji Failed'), equals(15));
     });
 

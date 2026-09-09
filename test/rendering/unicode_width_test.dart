@@ -47,7 +47,7 @@ void main() {
           reason: 'Bare $ch (text presentation) should be width 1',
         );
         expect(
-          UnicodeWidth.stringWidth(ch + '\uFE0F'),
+          UnicodeWidth.stringWidth('$ch\uFE0F'),
           equals(2),
           reason: '$ch + FE0F (emoji presentation) should be width 2',
         );
@@ -221,7 +221,8 @@ void main() {
         'Hello 🌍 World': 14, // ASCII (6) + emoji (2) + ASCII (6)
         'Mixed 💻 text': 13, // ASCII (6) + emoji (2) + ASCII (5)
         '🚀 Rocket': 9, // Emoji (2) + space (1) + ASCII (6)
-        'Code 💻 + Coffee ☕ = 🎯': 24, // Complex mix (☕ is emoji presentation: 2)
+        'Code 💻 + Coffee ☕ = 🎯':
+            24, // Complex mix (☕ is emoji presentation: 2)
         '中文text': 8, // CJK (4) + ASCII (4)
       };
 
