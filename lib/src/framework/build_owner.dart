@@ -10,7 +10,6 @@ class BuildOwner {
   final _InactiveElements _inactiveElements = _InactiveElements();
   final List<Element> _dirtyElements = [];
   bool _scheduledFlushDirtyElements = false;
-  bool? _dirtyElementsNeedsResorting;
 
   /// Forgotten children are elements that have been removed from the tree.
   final Set<Element> _forgottenChildren = HashSet<Element>();
@@ -46,7 +45,6 @@ class BuildOwner {
     }
     _dirtyElements.add(element);
     element._inDirtyList = true;
-    _dirtyElementsNeedsResorting = true;
   }
 
   /// Check if there are any dirty elements that need to be rebuilt
@@ -58,47 +56,31 @@ class BuildOwner {
       callback();
     }
 
-    _dirtyElements.sort((a, b) => a.depth - b.depth);
-    _dirtyElementsNeedsResorting = false;
+    while (_dirtyElements.isNotEmpty) {
+      _dirtyElements.sort((a, b) => a.depth - b.depth);
+      final batch = List<Element>.of(_dirtyElements);
+      _dirtyElements.clear();
 
-    int dirtyCount = _dirtyElements.length;
-    int index = 0;
-
-    while (index < dirtyCount) {
-      final element = _dirtyElements[index];
-      assert(element._inDirtyList);
-
-      // Skip elements that are no longer active (e.g., removed during animation)
-      if (element._lifecycleState != _ElementLifecycle.active) {
+      for (final element in batch) {
+        if (!element._inDirtyList) continue;
         element._inDirtyList = false;
-        element._dirty = false; // Clear dirty flag since we won't rebuild
-        index += 1;
-        continue;
-      }
 
-      element.rebuild();
-      element._inDirtyList = false;
-      index += 1;
+        // An ancestor may already have rebuilt this entry synchronously while
+        // updating its child tree. In that case the queued descendant is
+        // stale and must not be built a second time.
+        if (!element.dirty) continue;
 
-      if (_dirtyElementsNeedsResorting == true) {
-        _dirtyElements.sort((a, b) => a.depth - b.depth);
-        _dirtyElementsNeedsResorting = false;
-        dirtyCount = _dirtyElements.length;
-        while (index > 0 && _dirtyElements[index - 1].dirty) {
-          index -= 1;
+        // Skip elements that are no longer active (e.g., removed during
+        // animation).
+        if (element._lifecycleState != _ElementLifecycle.active) {
+          element._dirty = false;
+          continue;
         }
+
+        element.rebuild();
       }
     }
 
-    assert(() {
-      for (final element in _dirtyElements) {
-        assert(!element.dirty,
-            'Element ${element.runtimeType} is still dirty after building');
-      }
-      return true;
-    }());
-
-    _dirtyElements.clear();
     _scheduledFlushDirtyElements = false;
   }
 
