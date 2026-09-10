@@ -42,6 +42,18 @@ class FocusManager {
     }
   }
 
+  /// Clear the current focus without selecting a replacement.
+  ///
+  /// This is useful when a transient surface closes and keyboard input should
+  /// return to the application's global handlers instead of another control.
+  void unfocus() {
+    final old = _activeFocusable;
+    _activeFocusable = null;
+    if (old != null && old.mounted) {
+      old.notifyFocusChanged(false);
+    }
+  }
+
   bool handleNavigationKey(KeyboardEvent event) {
     final key = event.logicalKey;
 

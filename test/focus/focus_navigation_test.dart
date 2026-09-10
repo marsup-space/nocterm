@@ -60,6 +60,32 @@ void main() {
       });
     });
 
+    group('unfocus', () {
+      test('clears focus and notifies the active Focusable', () async {
+        bool isFocused = false;
+
+        await testNocterm('clear focus', (tester) async {
+          await tester.pumpComponent(
+            Focusable(
+              autofocus: true,
+              onKeyEvent: (_) => false,
+              child: Builder(builder: (context) {
+                isFocused = Focus.of(context);
+                return const Text('A');
+              }),
+            ),
+          );
+
+          expect(isFocused, isTrue);
+          NoctermBinding.instance.focusManager.unfocus();
+          await tester.pump();
+
+          expect(NoctermBinding.instance.focusManager.activeFocusable, isNull);
+          expect(isFocused, isFalse);
+        });
+      });
+    });
+
     group('Tab navigation', () {
       test('Tab moves to next Focusable', () async {
         int activeIndex = -1;
