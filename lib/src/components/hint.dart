@@ -903,6 +903,12 @@ class Hinted extends StatefulComponent {
     this.delay,
     this.placement = HintPlacement.above,
     this.color,
+
+    /// Optional override of the tooltip's max line count (including border).
+    /// `null` keeps the overlay's default — callers whose hint text can grow
+    /// past four lines (e.g. per-worker detail tooltips) raise it so the
+    /// last line isn't silently ellipsized.
+    this.maxLines,
     required this.child,
   });
 
@@ -918,6 +924,9 @@ class Hinted extends StatefulComponent {
 
   /// Optional foreground color for the tooltip.
   final Color? color;
+
+  /// Optional tooltip line-count cap; see the constructor doc.
+  final int? maxLines;
 
   /// The subtree to wrap.
   final Component child;
@@ -941,6 +950,9 @@ class _HintedState extends State<Hinted> with HintStateMixin<Hinted> {
 
   @override
   Color? get hintColor => component.color;
+
+  @override
+  int? get hintMaxLines => component.maxLines;
 
   @override
   void didUpdateComponent(covariant Hinted oldComponent) {
