@@ -6,6 +6,29 @@
 - **TextField: macOS Cmd+A/C/V/X (Meta+A/C/V/X) alias for select-all / copy / cut / paste** — the kitty keyboard protocol parses the Cmd key into a "super"/Meta modifier, so `Cmd+A/C/V/X` was reaching TextField with `meta: true` and falling through to the character-insertion branch (typing a literal `a` / `c` / `v` / `x`). The select-all / copy / cut / paste handlers now accept either `ctrl: true` or `meta: true`, so `Cmd+A/C/V/X` work the same way macOS GUI users expect. `Cmd+W` and `Cmd+T` are intentionally NOT aliased — those have their own macOS conventions (close window / new tab) and should keep falling through.
 - **NoctermBinding: `hasPendingPasteText` peek for synthetic-Ctrl+V detection** — components can now distinguish a user-initiated Ctrl+V from the synthetic Ctrl+V that TerminalBinding emits to route an IME bracketed paste. Without this peek, a component handler that reads the system clipboard on every Ctrl+V (e.g. to attach a clipboard image) would mis-attach whatever image the user happened to have on their clipboard on every IME candidate confirmation, making CJK input unusable. Crux's chat_input is the first consumer.
 
+# 0.9.0
+
+## Features
+- **Box-line blending**: Dividers and borders now merge with box-drawing characters they overlap, forming junctions (`├ ┤ ┬ ┴ ┼`) instead of leaving gaps. Every line character is modeled as four arms (up/right/down/left) with light/heavy/double weights; drawing one on another combines the arms and emits the matching glyph. New `mergeBoxCharacters`/`mergeArmsIntoCharacter` utilities, `TerminalCanvas.drawText(blendBoxLines:)`, and `TerminalCanvas.drawJunction`
+- **Divider**: A negative `indent`/`endIndent` reaches the divider outside its own bounds; those cells contribute only the arm pointing back into the rule, so an end landing on a border forms a tee (`├`), not a cross. An end with nothing to join paints nothing
+- **BoxBorder**: An overlaid panel's border corners merge with box characters beneath them, so a docked panel tees into the border it lands on
+- **BoxBorderStyle.bold**: New heavy border style (`┏ ━ ┓`)
+- Demo: `example/box_line_blending_demo.dart` shows dividers, crossings, all weights, and an overlaid panel
+
+## Behavior Changes
+- **Blending is always on** for `Divider`, `VerticalDivider`, and border corners (the `ascii` divider style never merges). When both characters carry an arm in the same direction, the newly drawn character wins (z-order), so drawing `╭` over `┌` rounds the corner and vice versa
+- **Dotted borders**: Edges now use light triple-dash (`┄ ┆`) instead of heavy (`┅ ┇`) to match their light corners
+
+## Bug Fixes
+- **Divider**: No longer throws (discarding the whole frame) when laid out under unbounded constraints
+- **Divider**: A cell the merge leaves unchanged keeps its original style instead of being recolored
+- **BoxBorder**: Vertical sides run the full height of the box when no top/bottom border paints the end cells, so backgrounds no longer show holes
+- **BorderTitle**: A styled title keeps the panel background instead of showing what was underneath
+- **LogServer**: Each server can publish its port to its own file (`portFilePath`), so multiple servers in one process no longer race on the pid-keyed global file
+- **getProjectDirectory**: Accepts an explicit starting directory to avoid racing on process-wide `Directory.current`
+
+---
+
 # 0.8.0
 
 ## Bug Fixes

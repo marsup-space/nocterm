@@ -127,9 +127,17 @@ enum BoxBorderStyle {
   dotted,
   double,
   rounded,
+  bold,
 }
 
-/// Box border configuration
+/// Box border configuration.
+///
+/// The border's corner cells merge with box-drawing characters already
+/// painted underneath them, forming junctions instead of overwriting them -
+/// e.g. an overlaid panel's corners landing on another box's border tee into
+/// it (`┬`/`┴`). Edge runs and title text always paint over what is
+/// underneath, so an overlaid panel still occludes unrelated content it
+/// covers.
 class BoxBorder {
   const BoxBorder({
     this.top = BorderSide.none,
@@ -519,7 +527,21 @@ class RenderDecoratedBox extends RenderObject
 
     // Paint background color
     if (_decoration.color != null) {
-      _paintBackground(canvas, absoluteRect, _decoration.color!);
+      var backgroundRect = absoluteRect;
+      final border = _decoration.border;
+      if (border != null && !border.hasNoBorder) {
+        // The border's corner cells merge with whatever is painted
+        // underneath them, so the background fill must not erase those
+        // cells first. The border pass paints the ring itself, using this
+        // background color.
+        backgroundRect = Rect.fromLTRB(
+          absoluteRect.left + (border.left.isNone ? 0 : 1),
+          absoluteRect.top + (border.top.isNone ? 0 : 1),
+          absoluteRect.right - (border.right.isNone ? 0 : 1),
+          absoluteRect.bottom - (border.bottom.isNone ? 0 : 1),
+        );
+      }
+      _paintBackground(canvas, backgroundRect, _decoration.color!);
     }
 
     // Paint border - pass the offset for absolute positioning
@@ -535,12 +557,14 @@ class RenderDecoratedBox extends RenderObject
   }
 
   void _setCell(
-      TerminalCanvas canvas, int x, int y, String char, TextStyle style) {
+      TerminalCanvas canvas, int x, int y, String char, TextStyle style,
+      {bool blend = false}) {
     // Use drawText with a single character at the given position
     canvas.drawText(
       Offset(x.toDouble(), y.toDouble()),
       char,
       style: style,
+      blendBoxLines: blend,
     );
   }
 
@@ -576,12 +600,12 @@ class RenderDecoratedBox extends RenderObject
         } else {
           charToUse = chars.horizontal;
         }
-        _setCell(canvas, left, top, charToUse, borderStyle);
+        _setCell(canvas, left, top, charToUse, borderStyle, blend: true);
       } else {
         // Use corner only if left border connects, otherwise use horizontal
         final leftTopChar =
             !border.left.isNone ? chars.topLeft : chars.horizontal;
-        _setCell(canvas, left, top, leftTopChar, borderStyle);
+        _setCell(canvas, left, top, leftTopChar, borderStyle, blend: true);
 
         // Check if we have a title to render
         final title = _decoration.title;
@@ -592,7 +616,10 @@ class RenderDecoratedBox extends RenderObject
           // Minimum width: space + 1 char title + space + some border chars
           // Format: ─ Title ─────
           final titleText = title.plainText;
-          final titleStyle = title.style ?? borderStyle;
+          // The fill stops short of the border row, so a title style with
+          // no background of its own would show what was underneath.
+          final titleStyle = (title.style ?? borderStyle)
+              .copyWith(backgroundColor: borderBackground);
 
           // Calculate title display with " Title " format (space padding).
           // Widths are in terminal *columns* via UnicodeWidth, so CJK titles
@@ -697,7 +724,7 @@ class RenderDecoratedBox extends RenderObject
         // Use corner only if right border connects, otherwise use horizontal
         final rightTopChar =
             !border.right.isNone ? chars.topRight : chars.horizontal;
-        _setCell(canvas, right, top, rightTopChar, borderStyle);
+        _setCell(canvas, right, top, rightTopChar, borderStyle, blend: true);
       }
     }
 
@@ -720,31 +747,34 @@ class RenderDecoratedBox extends RenderObject
         } else {
           charToUse = chars.horizontal;
         }
-        _setCell(canvas, left, bottom, charToUse, style);
+        _setCell(canvas, left, bottom, charToUse, style, blend: true);
       } else {
         // Use corner only if left border connects, otherwise use horizontal
         final leftBottomChar =
             !border.left.isNone ? chars.bottomLeft : chars.horizontal;
-        _setCell(canvas, left, bottom, leftBottomChar, style);
+        _setCell(canvas, left, bottom, leftBottomChar, style, blend: true);
         for (int x = left + 1; x < right; x++) {
           _setCell(canvas, x, bottom, chars.horizontal, style);
         }
         // Use corner only if right border connects, otherwise use horizontal
         final rightBottomChar =
             !border.right.isNone ? chars.bottomRight : chars.horizontal;
-        _setCell(canvas, right, bottom, rightBottomChar, style);
+        _setCell(canvas, right, bottom, rightBottomChar, style, blend: true);
       }
     }
+
+    // A vertical side stops short of the corners only where the top or
+    // bottom pass actually paints them. Without those borders it has to
+    // reach the end cell, which the inset fill does not cover either.
+    final verticalTop = top + (border.top.isNone ? 0 : 1);
+    final verticalBottom = bottom - (border.bottom.isNone ? 0 : 1);
 
     // Paint left border
     if (!border.left.isNone) {
       final style = TextStyle(
           color: border.left.color, backgroundColor: borderBackground);
-      // Only paint vertical lines if there's space between top and bottom
-      if (bottom > top) {
-        for (int y = top + 1; y < bottom; y++) {
-          _setCell(canvas, left, y, chars.vertical, style);
-        }
+      for (int y = verticalTop; y <= verticalBottom; y++) {
+        _setCell(canvas, left, y, chars.vertical, style);
       }
     }
 
@@ -752,11 +782,8 @@ class RenderDecoratedBox extends RenderObject
     if (!border.right.isNone && right > left) {
       final style = TextStyle(
           color: border.right.color, backgroundColor: borderBackground);
-      // Only paint vertical lines if there's space between top and bottom
-      if (bottom > top) {
-        for (int y = top + 1; y < bottom; y++) {
-          _setCell(canvas, right, y, chars.vertical, style);
-        }
+      for (int y = verticalTop; y <= verticalBottom; y++) {
+        _setCell(canvas, right, y, chars.vertical, style);
       }
     }
   }
@@ -780,6 +807,8 @@ class RenderDecoratedBox extends RenderObject
         return _BorderCharacters.dashed;
       case BoxBorderStyle.dotted:
         return _BorderCharacters.dotted;
+      case BoxBorderStyle.bold:
+        return _BorderCharacters.bold;
       case BoxBorderStyle.solid:
       case BoxBorderStyle.none:
       case null:
@@ -845,6 +874,15 @@ class _BorderCharacters {
     bottomRight: '┘',
   );
 
+  static const bold = _BorderCharacters(
+    horizontal: '━',
+    vertical: '┃',
+    topLeft: '┏',
+    topRight: '┓',
+    bottomLeft: '┗',
+    bottomRight: '┛',
+  );
+
   static const double = _BorderCharacters(
     horizontal: '═',
     vertical: '║',
@@ -873,8 +911,8 @@ class _BorderCharacters {
   );
 
   static const dotted = _BorderCharacters(
-    horizontal: '┅',
-    vertical: '┇',
+    horizontal: '┄',
+    vertical: '┆',
     topLeft: '┌',
     topRight: '┐',
     bottomLeft: '└',

@@ -37,6 +37,7 @@ export 'nocterm_test.dart';
 export 'src/framework/framework.dart';
 export 'src/framework/axis.dart';
 export 'src/focus/focus_manager.dart';
+export 'src/framework/terminal_canvas.dart' show TerminalCanvas, BorderStyle;
 
 export 'src/components/spacer.dart';
 export 'src/components/divider.dart';
@@ -77,6 +78,7 @@ export 'src/utils/log_server.dart';
 export 'src/utils/logger.dart';
 export 'src/utils/nocterm_paths.dart';
 export 'src/utils/escape_codes.dart';
+export 'src/utils/box_line_merging.dart';
 
 // Performance and Debugging
 export 'src/foundation/performance.dart';

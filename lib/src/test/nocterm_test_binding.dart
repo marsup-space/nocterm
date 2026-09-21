@@ -216,7 +216,9 @@ class NoctermTestBinding extends NoctermBinding with SchedulerBinding {
     scheduler.cancelAll();
     _testKeyboardController.close();
     _testMouseController.close();
-    // Clear the singleton instance to allow multiple tests
+    // Clear the singleton so tests can create fresh bindings; the analyzer cannot
+    // tell this lib/ file is test-only.
+    // ignore: invalid_use_of_visible_for_testing_member
     NoctermBinding.resetInstance();
     _instance = null;
   }
