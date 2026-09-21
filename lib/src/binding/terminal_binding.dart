@@ -1481,30 +1481,43 @@ class TerminalBinding extends NoctermBinding
       // No focused text field – hide the terminal cursor (normal TUI mode).
       // The TUI renders its own content via the buffer; the terminal's
       // native cursor is not needed.
-      if (_imeCursorVisible) {
-        terminal.hideCursor();
-        _imeCursorVisible = false;
-      }
+      _hideImeCursor();
       return;
     }
 
     final imePosition = renderTextField.getImeCursorPosition();
-    if (imePosition != null) {
-      // Move the physical terminal cursor to the text field's cursor position.
-      // This gives the IME a stable location for its composition window.
-      terminal.moveCursor(
-        imePosition.dx.round(),
-        imePosition.dy.round(),
-      );
+    if (imePosition == null) {
+      // The render text field exists but cannot report a cursor position —
+      // e.g. it is mounted inside the focused subtree yet not itself
+      // focused (a dormant search box behind a fullpane). Without this
+      // branch the physical cursor kept its previous visible state and
+      // trailed the last cell written by differential rendering, jumping
+      // around the screen on every frame.
+      return _hideImeCursor();
+    }
 
-      // Show the terminal cursor so that IME composition windows
-      // (e.g. Chinese Pinyin) appear at the correct screen position.
-      // Some terminal emulators only position the IME at the visible
-      // cursor location.
-      if (!_imeCursorVisible) {
-        terminal.showCursor();
-        _imeCursorVisible = true;
-      }
+    // Move the physical terminal cursor to the text field's cursor position.
+    // This gives the IME a stable location for its composition window.
+    terminal.moveCursor(
+      imePosition.dx.round(),
+      imePosition.dy.round(),
+    );
+
+    // Show the terminal cursor so that IME composition windows
+    // (e.g. Chinese Pinyin) appear at the correct screen position.
+    // Some terminal emulators only position the IME at the visible
+    // cursor location.
+    if (!_imeCursorVisible) {
+      terminal.showCursor();
+      _imeCursorVisible = true;
+    }
+  }
+
+  /// Hide the terminal cursor if it is currently visible.
+  void _hideImeCursor() {
+    if (_imeCursorVisible) {
+      terminal.hideCursor();
+      _imeCursorVisible = false;
     }
   }
 
