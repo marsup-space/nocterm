@@ -23,43 +23,44 @@ void main() {
         Container(
           width: 30,
           height: 5,
-          child: TextField(
-            controller: controller,
-            focused: true,
-          ),
+          child: TextField(controller: controller, focused: true),
         ),
       );
     }
 
-    test('Meta+C with a selection copies and does NOT insert "c"',
-        () async {
+    test('Meta+C with a selection copies and does NOT insert "c"', () async {
       await testNocterm('meta+c copies', (tester) async {
-        final controller =
-            TextEditingController(text: 'hello world');
+        final controller = TextEditingController(text: 'hello world');
 
         await setupTextField(tester, controller: controller);
 
         // Select the entire text so _copy has something to grab.
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyA,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyA,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
-        expect(controller.selection.isCollapsed, isFalse,
-            reason: 'Meta+A must extend the selection (alias for Ctrl+A)');
+        expect(
+          controller.selection.isCollapsed,
+          isFalse,
+          reason: 'Meta+A must extend the selection (alias for Ctrl+A)',
+        );
 
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyC,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyC,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
         // Selection should be preserved (copy doesn't change text).
         expect(controller.text, equals('hello world'));
       });
     });
 
-    test('Meta+V does NOT insert "v" (paste path is taken instead)',
-        () async {
+    test('Meta+V does NOT insert "v" (paste path is taken instead)', () async {
       // Without a clipboard payload the paste is a no-op, but the
       // important assertion is that the event doesn't fall through
       // to the character-insertion branch. We assert this by checking
@@ -69,45 +70,51 @@ void main() {
 
         await setupTextField(tester, controller: controller);
 
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyV,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyV,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
         // The text must NOT have grown by a literal 'v'.
         expect(controller.text, equals('hi '));
       });
     });
 
-    test('Meta+X does NOT insert "x" (cut path is taken instead)',
-        () async {
+    test('Meta+X does NOT insert "x" (cut path is taken instead)', () async {
       await testNocterm('meta+x routes to cut', (tester) async {
-        final controller =
-            TextEditingController(text: 'hello world');
+        final controller = TextEditingController(text: 'hello world');
 
         await setupTextField(tester, controller: controller);
 
         // Select everything so the cut has effect.
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyA,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyA,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyX,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyX,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
         // Either the cut deleted the text (selection copy to clipboard
         // + text removal) or the text was preserved — but in neither
         // case may a literal 'x' have been appended.
-        expect(controller.text.contains('x'), isFalse,
-            reason: 'Meta+X must not fall through to character insertion');
+        expect(
+          controller.text.contains('x'),
+          isFalse,
+          reason: 'Meta+X must not fall through to character insertion',
+        );
       });
     });
 
-    test('Meta+W is NOT aliased to delete-word-backward',
-        () async {
+    test('Meta+W is NOT aliased to delete-word-backward', () async {
       // Cmd+W is "close window" on macOS, so we intentionally do not
       // alias it to word-delete. This is a regression guard so a
       // future "let's alias all Ctrl+* to Meta+*" drive-by doesn't
@@ -124,19 +131,23 @@ void main() {
 
         await setupTextField(tester, controller: controller);
 
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyW,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyW,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
-        expect(controller.text.endsWith('world'), isTrue,
-            reason: 'Meta+W must not call _deleteWordBackward '
-                'on the trailing word');
+        expect(
+          controller.text.endsWith('world'),
+          isTrue,
+          reason: 'Meta+W must not call _deleteWordBackward '
+              'on the trailing word',
+        );
       });
     });
 
-    test('Meta+T is NOT aliased to transpose-characters',
-        () async {
+    test('Meta+T is NOT aliased to transpose-characters', () async {
       // Same regression guard as Meta+W: Cmd+T is "new tab" on macOS.
       // transpose-chars on 'ab' would yield 'ba', so asserting that
       // 'a' is still the first character is enough to prove the
@@ -146,31 +157,36 @@ void main() {
 
         await setupTextField(tester, controller: controller);
 
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyT,
-          modifiers: ModifierKeys(meta: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyT,
+            modifiers: ModifierKeys(meta: true),
+          ),
+        );
 
-        expect(controller.text.startsWith('a'), isTrue,
-            reason: 'Meta+T must not call _transposeCharacters');
+        expect(
+          controller.text.startsWith('a'),
+          isTrue,
+          reason: 'Meta+T must not call _transposeCharacters',
+        );
       });
     });
 
-    test('plain Ctrl+C is unaffected (still bubbles up)',
-        () async {
+    test('plain Ctrl+C is unaffected (still bubbles up)', () async {
       // Regression guard: the original Ctrl+C behavior (let the event
       // bubble up to the app for quit handling) must still work —
       // Meta+C is added as an alias, not a replacement.
       await testNocterm('ctrl+c bubbles', (tester) async {
-        final controller =
-            TextEditingController(text: 'hello world');
+        final controller = TextEditingController(text: 'hello world');
 
         await setupTextField(tester, controller: controller);
 
-        await tester.sendKeyEvent(KeyboardEvent(
-          logicalKey: LogicalKey.keyC,
-          modifiers: ModifierKeys(ctrl: true),
-        ));
+        await tester.sendKeyEvent(
+          KeyboardEvent(
+            logicalKey: LogicalKey.keyC,
+            modifiers: ModifierKeys(ctrl: true),
+          ),
+        );
 
         // Ctrl+C is handled by the parent component, not by TextField,
         // so the event handler returns false and the text doesn't
