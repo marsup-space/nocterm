@@ -7,6 +7,7 @@ import 'package:nocterm/src/framework/terminal_canvas.dart';
 import '../rendering/mouse_hit_test.dart';
 import '../rendering/mouse_tracker.dart';
 import '../text/text_layout_engine.dart';
+import '../utils/current_platform.dart';
 import '../utils/unicode_width.dart';
 import '../text/selection_utils.dart' as selection_utils;
 import 'text_field/cursor_movement.dart';
@@ -445,19 +446,19 @@ class _TextFieldState extends State<TextField> {
       _moveCursorToEnd();
       return true;
     } else if (event.matches(LogicalKey.keyA, ctrl: true) ||
-        event.matches(LogicalKey.keyA, meta: true)) {
+        (isApplePlatform && event.matches(LogicalKey.keyA, meta: true))) {
       _selectAll();
       return true;
     } else if (event.matches(LogicalKey.keyC, ctrl: true) ||
-        event.matches(LogicalKey.keyC, meta: true)) {
+        (isApplePlatform && event.matches(LogicalKey.keyC, meta: true))) {
       _copy();
       return true;
     } else if (event.matches(LogicalKey.keyX, ctrl: true) ||
-        event.matches(LogicalKey.keyX, meta: true)) {
+        (isApplePlatform && event.matches(LogicalKey.keyX, meta: true))) {
       _cut();
       return true;
     } else if (event.matches(LogicalKey.keyV, ctrl: true) ||
-        event.matches(LogicalKey.keyV, meta: true)) {
+        (isApplePlatform && event.matches(LogicalKey.keyV, meta: true))) {
       _paste();
       return true;
     } else if (event.matches(LogicalKey.keyW, ctrl: true)) {
