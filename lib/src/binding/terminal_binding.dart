@@ -268,12 +268,8 @@ class TerminalBinding extends NoctermBinding
     // This allows applications to distinguish pasted text from typed text
     terminal.write(EscapeCodes.enable.bracketedPasteMode);
 
-    // Enable kitty keyboard protocol for enhanced modifier key detection.
-    // This allows distinguishing Shift+Enter from Enter, Ctrl+Enter, etc.
-    // Terminals that don't support it will silently ignore the sequence.
-    // We also enable modifyOtherKeys as a fallback for terminals like xterm.
-    terminal.write(EscapeCodes.enable.kittyKeyboard);
-    terminal.write(EscapeCodes.enable.modifyOtherKeys);
+    // Enable kitty keyboard protocol / modifyOtherKeys (skipped on Windows).
+    _enableKeyboardProtocols();
     terminal.flush();
 
     // Store initial size
@@ -290,6 +286,24 @@ class TerminalBinding extends NoctermBinding
 
     // Start listening for termination signals
     _startSignalHandling();
+  }
+
+  /// Enable the terminal keyboard-enhancement protocols: the kitty
+  /// keyboard protocol (Shift/Ctrl+Enter disambiguation, associated
+  /// text for IME) and xterm modifyOtherKeys as the fallback.
+  ///
+  /// Skipped on Windows. The Windows input path reads console records
+  /// (`ReadConsoleInputW`), not a VT byte stream, so the protocols buy
+  /// nothing there — and Windows Terminal 1.25+ honours the kitty push:
+  /// it starts encoding Escape / Ctrl-chords as `CSI u` sequences, which
+  /// ConPTY replays as synthetic records with vk=0. The leading ESC byte
+  /// is lost and the remainder (`[27;129u`) is typed as literal text.
+  /// Win32AnsiStdin already synthesizes the modifier-aware sequences the
+  /// parser needs wherever the console API exposes modifiers.
+  void _enableKeyboardProtocols() {
+    if (Platform.isWindows) return;
+    terminal.write(EscapeCodes.enable.kittyKeyboard);
+    terminal.write(EscapeCodes.enable.modifyOtherKeys);
   }
 
   void _startInputHandling() {
@@ -629,9 +643,8 @@ class TerminalBinding extends NoctermBinding
     // Re-enable bracketed paste mode
     terminal.write(EscapeCodes.enable.bracketedPasteMode);
 
-    // Re-enable kitty keyboard protocol
-    terminal.write(EscapeCodes.enable.kittyKeyboard);
-    terminal.write(EscapeCodes.enable.modifyOtherKeys);
+    // Re-enable kitty keyboard protocol / modifyOtherKeys (skipped on Windows)
+    _enableKeyboardProtocols();
     terminal.flush();
 
     // Clear previous buffer to force full redraw

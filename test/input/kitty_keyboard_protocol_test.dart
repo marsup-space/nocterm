@@ -454,6 +454,28 @@ void main() {
         // Should be parsed as F5, not as modifyOtherKeys
         expect(keyEvent.logicalKey, equals(LogicalKey.f5));
       });
+
+      test('Windows Terminal: plain Escape with NumLock on (CSI 27;129u)', () {
+        // End-to-end regression for the Windows input bug: WT encodes
+        // Escape as CSI-u and includes the num_lock bit in the modifier
+        // field. The sequence must still resolve to a plain Escape press.
+        parser.addBytes('\x1B[27;129u'.codeUnits);
+        final event = parser.parseNext();
+        expect(event, isA<KeyboardInputEvent>());
+        final keyEvent = (event! as KeyboardInputEvent).event;
+        expect(keyEvent.logicalKey, equals(LogicalKey.escape));
+        expect(keyEvent.modifiers.hasAnyModifier, isFalse);
+      });
+
+      test('Windows Terminal: Ctrl+Enter with NumLock on (CSI 13;133u)', () {
+        parser.addBytes('\x1B[13;133u'.codeUnits);
+        final event = parser.parseNext();
+        expect(event, isA<KeyboardInputEvent>());
+        final keyEvent = (event! as KeyboardInputEvent).event;
+        expect(keyEvent.logicalKey, equals(LogicalKey.enter));
+        expect(keyEvent.modifiers.ctrl, isTrue);
+        expect(keyEvent.modifiers.hasAnyModifier, isTrue);
+      });
     });
   });
 
@@ -544,6 +566,44 @@ void main() {
       expect(event.modifiers.shift, isFalse);
       expect(event.modifiers.alt, isFalse);
       expect(event.modifiers.ctrl, isFalse);
+    });
+
+    // Windows Terminal reports lock-key state in the kitty modifier field
+    // (bit 6 = caps_lock, bit 7 = num_lock). `ModifierKeys` has no lock
+    // state, so those bits must be dropped or every key match would fail
+    // whenever NumLock/CapsLock is on. Regression for the Windows bug
+    // where plain Escape arrived as `CSI 27;129u` and was typed as text.
+    test('modifier 129 = num_lock only → no modifiers', () {
+      parser.clear();
+      // 129 = 1 + 128 (num_lock). Plain Escape with NumLock on.
+      final bytes = '\x1B[27;129u'.codeUnits;
+      final event = parser.parseBytes(bytes);
+      expect(event, isNotNull);
+      expect(event!.logicalKey, equals(LogicalKey.escape));
+      expect(event.modifiers.hasAnyModifier, isFalse);
+    });
+
+    test('modifier 65 = caps_lock only → no modifiers', () {
+      parser.clear();
+      // 65 = 1 + 64 (caps_lock). Plain Enter with CapsLock on.
+      final bytes = '\x1B[13;65u'.codeUnits;
+      final event = parser.parseBytes(bytes);
+      expect(event, isNotNull);
+      expect(event!.logicalKey, equals(LogicalKey.enter));
+      expect(event.modifiers.hasAnyModifier, isFalse);
+    });
+
+    test('modifier 133 = ctrl + num_lock → ctrl only', () {
+      parser.clear();
+      // 133 = 1 + 132 (ctrl=4, num_lock=128). Ctrl+Enter with NumLock on.
+      final bytes = '\x1B[13;133u'.codeUnits;
+      final event = parser.parseBytes(bytes);
+      expect(event, isNotNull);
+      expect(event!.logicalKey, equals(LogicalKey.enter));
+      expect(event.modifiers.ctrl, isTrue);
+      expect(event.modifiers.shift, isFalse);
+      expect(event.modifiers.alt, isFalse);
+      expect(event.modifiers.meta, isFalse);
     });
   });
 

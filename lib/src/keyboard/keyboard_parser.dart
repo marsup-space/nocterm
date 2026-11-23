@@ -623,9 +623,12 @@ class KeyboardParser {
   }
 
   /// Decode modifier bitmask. Value is 1 + bitmask.
-  /// Bit 0 = shift, Bit 1 = alt, Bit 2 = ctrl, Bit 3 = super/meta
+  /// Bit 0 = shift, Bit 1 = alt, Bit 2 = ctrl, Bit 3 = super/meta,
+  /// Bit 6 = caps_lock, Bit 7 = num_lock.
+  ///
+  /// Lock-key bits are dropped — see `InputParser._decodeModifiers`.
   ModifierKeys _decodeModifiers(int value) {
-    final bitmask = value - 1;
+    final bitmask = (value - 1) & 0x0F;
     return ModifierKeys(
       shift: (bitmask & 1) != 0,
       alt: (bitmask & 2) != 0,

@@ -1077,9 +1077,16 @@ class InputParser {
 
   /// Decode modifier bitmask from kitty/modifyOtherKeys protocol.
   /// The value sent is 1 + bitmask, so we subtract 1 first.
-  /// Bit 0 = shift, Bit 1 = alt, Bit 2 = ctrl, Bit 3 = super/meta
+  /// Bit 0 = shift, Bit 1 = alt, Bit 2 = ctrl, Bit 3 = super/meta,
+  /// Bit 6 = caps_lock, Bit 7 = num_lock.
+  ///
+  /// The lock-key bits are deliberately dropped: a Windows Terminal that
+  /// encodes keys as `CSI u` reports NumLock/CapsLock state in the
+  /// modifier field (so plain Escape arrives as `CSI 27;129u` when
+  /// NumLock is on), and `ModifierKeys` has no notion of lock state.
+  /// Keeping the bits would only make key-matching fail.
   ModifierKeys _decodeModifiers(int value) {
-    final bitmask = value - 1;
+    final bitmask = (value - 1) & 0x0F;
     return ModifierKeys(
       shift: (bitmask & 1) != 0,
       alt: (bitmask & 2) != 0,
